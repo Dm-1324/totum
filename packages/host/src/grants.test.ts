@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "@totum/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { openDb } from "./db.js";
-import { GrantStore, normalizeFolder, scopeCovers } from "./grants.js";
+import { canonicalFolder, canonicalScope, GrantStore, normalizeFolder, scopeCovers } from "./grants.js";
 
 const folder = (path: string): Scope => ({ kind: "folder", path });
 
@@ -19,10 +19,94 @@ describe("normalizeFolder", () => {
     expect(normalizeFolder("C:\\")).toBe("c:\\");
   });
 
-  it("refuses relative paths", () => {
-    for (const bad of ["Projects", ".\\Projects", "..\\..\\Windows", "C:Projects"]) {
+  it("refuses relative and drive-relative paths", () => {
+    for (const bad of ["Projects", ".\\Projects", "..\\..\\Windows", "C:Projects", "\\Windows", "/Windows"]) {
       expect(normalizeFolder(bad), bad).toBeUndefined();
     }
+  });
+
+  it("accepts UNC shares", () => {
+    expect(normalizeFolder("\\\\Server\\Share\\Docs")).toBe("\\\\server\\share\\docs");
+  });
+
+  it("refuses paths Windows reads differently from their text", () => {
+    for (const bad of [
+      "\\\\?\\C:\\A\\..\\Windows", // device namespace: the OS doesn't collapse ..
+      "\\\\.\\C:\\A",
+      "//?/C:/A",
+      "C:\\A.", // Windows strips trailing dots and spaces: this is C:\A
+      "C:\\A \\x",
+      "C:\\A\\...",
+      "C:\\A\\file.txt:secret", // alternate data stream
+      "C:\\A\\nul",
+      "C:\\A\\CON.txt",
+      "C:\\A\\com1",
+      "C:\\A\\conin$",
+    ]) {
+      expect(normalizeFolder(bad), bad).toBeUndefined();
+    }
+  });
+
+  it("still accepts names that only look close to those", () => {
+    for (const ok of ["C:\\A\\.config", "C:\\A\\console", "C:\\A\\nullable", "C:\\A\\a.b"]) {
+      expect(normalizeFolder(ok), ok).toBeDefined();
+    }
+  });
+});
+
+describe("canonicalFolder", () => {
+  // A fake file system: C:\A\link is a junction to C:\Windows; C:\A and C:\Windows exist.
+  const links: Record<string, string> = {
+    "c:\\": "C:\\",
+    "c:\\a": "C:\\A",
+    "c:\\a\\link": "C:\\Windows",
+    "c:\\windows": "C:\\Windows",
+  };
+  const realpath = (p: string) => {
+    const hit = links[p.toLowerCase()];
+    if (hit === undefined) throw new Error("ENOENT");
+    return hit;
+  };
+
+  it("follows a link in an existing path", () => {
+    expect(canonicalFolder("C:\\A\\link\\System32", realpath)).toBe("c:\\windows\\system32");
+  });
+
+  it("keeps the parts that don't exist yet", () => {
+    expect(canonicalFolder("C:\\A\\new\\deeper", realpath)).toBe("c:\\a\\new\\deeper");
+  });
+
+  it("refuses what normalizeFolder refuses", () => {
+    expect(canonicalFolder("\\\\?\\C:\\A", realpath)).toBeUndefined();
+  });
+
+  it("makes a grant on C:\\A not cover a call through a link out of it", () => {
+    const wanted = canonicalScope(folder("C:\\A\\link\\System32"), realpath)!;
+    const granted = canonicalScope(folder("C:\\A"), realpath)!;
+    expect(scopeCovers(granted, wanted)).toBe(false);
+    // Why canonicalizing matters: the plain text comparison says yes.
+    expect(scopeCovers(folder("C:\\A"), folder("C:\\A\\link\\System32"))).toBe(true);
+  });
+
+  it("follows a real junction on disk", () => {
+    const base = mkdtempSync(join(tmpdir(), "totum-junction-"));
+    try {
+      const granted = join(base, "granted");
+      const outside = join(base, "outside");
+      mkdirSync(granted);
+      mkdirSync(outside);
+      symlinkSync(outside, join(granted, "link"), "junction");
+      const real = (p: string) => realpathSync.native(p);
+      const wanted = canonicalScope(folder(join(granted, "link", "x")), real)!;
+      expect(wanted).toEqual(folder(normalizeFolder(join(realpathSync.native(outside), "x"))!));
+      expect(scopeCovers(canonicalScope(folder(granted), real)!, wanted)).toBe(false);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves apps and accounts alone", () => {
+    expect(canonicalScope({ kind: "app", app: "x" }, realpath)).toEqual({ kind: "app", app: "x" });
   });
 });
 
