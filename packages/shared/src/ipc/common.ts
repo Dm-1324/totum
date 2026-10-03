@@ -7,6 +7,9 @@ export const MessageText = z.string().min(1).max(MAX_TEXT_LENGTH);
 /** Correlates an agent reply with the message that caused it. */
 export const MessageId = z.uuid();
 
+/** Any schema, for code that validates without importing zod itself. */
+export type Schema<T> = z.ZodType<T>;
+
 /** Summarizes why a payload failed validation, without echoing the payload. */
 export function describeIssues(error: z.ZodError): string[] {
   return error.issues.map((i) => `${i.code} at ${i.path.join(".") || "(root)"}`);

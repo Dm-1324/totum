@@ -20,6 +20,14 @@ export const CapabilityCall = z
 export type CapabilityCall = z.infer<typeof CapabilityCall>;
 
 /**
+ * A call as the agent sends it: no task id. Main adds the id of the user
+ * request it is answering, so the agent can't start a fresh "task" to escape
+ * per-task denials and prompt limits, or act when the user asked nothing.
+ */
+export const AgentCall = CapabilityCall.omit({ taskId: true });
+export type AgentCall = z.infer<typeof AgentCall>;
+
+/**
  * Longest action an approval dialog shows. Above the longest message text, so
  * a describe() quoting a full message fits. Longer actions are refused, never
  * shortened: the user must see everything that will run.

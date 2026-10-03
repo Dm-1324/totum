@@ -6,7 +6,7 @@ import { createTestCapabilities } from "./capabilities/test-capabilities.js";
 import { openDb } from "./db.js";
 import { PermissionEngine } from "./engine.js";
 import { GrantStore } from "./grants.js";
-import { handleMessage, readyMessage } from "./handler.js";
+import { HostHandler, readyMessage } from "./handler.js";
 import { nodeFsProbe } from "./node-fs-probe.js";
 import { productionCapabilities } from "./registry.js";
 
@@ -37,15 +37,11 @@ log("info", "host: database open");
 // Test capabilities exist only in dev and test builds. Vite replaces the flag
 // with a constant, so a production bundle drops the branch and the module.
 const capabilities = [...productionCapabilities(db), ...(__TOTUM_DEV__ ? createTestCapabilities(db) : [])];
-// Main sends capability calls in milestone 2 slice 4; until then the engine is built but idle.
-const engine = new PermissionEngine({
-  capabilities,
-  grants: new GrantStore(db),
-  audit: new AuditLog(db),
-  log,
-  fs: nodeFsProbe,
-});
+const grants = new GrantStore(db);
+const audit = new AuditLog(db);
+const engine = new PermissionEngine({ capabilities, grants, audit, log, fs: nodeFsProbe });
 log("info", "host: capabilities ready", { ids: engine.ids() });
 
-port.on("message", ({ data }) => handleMessage(data, log));
+const handler = new HostHandler({ engine, grants, audit, log, post: (message) => port.postMessage(message) });
+port.on("message", ({ data }) => handler.handle(data));
 port.postMessage(readyMessage());

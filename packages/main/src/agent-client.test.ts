@@ -174,3 +174,68 @@ describe("AgentClient: a request never hangs", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe("AgentClient: task id and holds", () => {
+  it("names the task only while exactly one user message is in flight", async () => {
+    const { client } = setup();
+    expect(client.taskId()).toBeUndefined();
+    const first = client.send("one");
+    expect(client.taskId()).toBe(ids[0]);
+    const second = client.send("two");
+    expect(client.taskId()).toBeUndefined();
+    client.receive(reply(ids[0]!, "a"));
+    client.receive(reply(ids[1]!, "b"));
+    await Promise.all([first, second]);
+    expect(client.taskId()).toBeUndefined();
+  });
+
+  it("doesn't time out while held, then gives the full timeout again", async () => {
+    const { client } = setup();
+    const state = track(client.send("hello"));
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS - 1);
+    const release = client.hold();
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS * 10);
+    expect(state.settled).toBe(false);
+    release();
+    release(); // idempotent
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS - 1);
+    expect(state.settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(state.error).toBeInstanceOf(AgentRequestError);
+  });
+
+  it("stays held until the last of several holds is released, including for requests sent while held", async () => {
+    const { client } = setup();
+    const a = client.hold();
+    const b = client.hold();
+    const state = track(client.send("sent while held"));
+    a();
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS * 2);
+    expect(state.settled).toBe(false);
+    b();
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS);
+    expect(state.settled).toBe(true);
+  });
+
+  it("hands capability requests to the relay and posts results", () => {
+    const requests: unknown[] = [];
+    const posted: MainToAgent[] = [];
+    const client = new AgentClient({
+      post: (m) => {
+        posted.push(m);
+        return true;
+      },
+      log: vi.fn<Log>(),
+      onCapabilityRequest: (m) => requests.push(m),
+    });
+    const request = {
+      type: "capability.request",
+      id: ids[0],
+      call: { capability: "test.echo", input: { text: "hi" }, shapedByUntrusted: false },
+    };
+    client.receive(request);
+    expect(requests).toEqual([request]);
+    client.postResult(ids[0]!, { ok: true, output: 1, untrusted: false });
+    expect(posted).toEqual([{ type: "capability.result", id: ids[0], result: { ok: true, output: 1, untrusted: false } }]);
+  });
+});

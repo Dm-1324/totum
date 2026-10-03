@@ -4,11 +4,12 @@ import { MAX_TEXT_LENGTH } from "@totum/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
+import { fakeApi } from "./fake-api.js";
 
 afterEach(cleanup);
 
 function setup(sendMessage: TotumApi["sendMessage"]) {
-  const api: TotumApi = { sendMessage: vi.fn(sendMessage) };
+  const api: TotumApi = fakeApi({ sendMessage: vi.fn(sendMessage) });
   const view = render(<App api={api} />);
   const input = screen.getByLabelText<HTMLInputElement>("Message");
   const log = screen.getByRole("log", { name: "Conversation" });

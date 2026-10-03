@@ -37,6 +37,7 @@ function wire() {
     c.postMessage = (m) => {
       original(m);
       const msg = m as MainToAgent;
+      if (msg.type !== "agent.message") return;
       queueMicrotask(() => c.emitMessage({ type: "agent.reply", id: msg.id, text: `agent: ${msg.text}` }));
     };
   };
