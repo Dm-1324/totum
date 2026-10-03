@@ -8,6 +8,9 @@
   --accent-text: #ffffff;
   --error: #b42318;
   --error-bg: #fdf0ee;
+  --warn: #8a5a00;
+  --warn-bg: #fdf5e3;
+  --backdrop: rgb(20 18 15 / 0.45);
   color-scheme: light;
 }
 
@@ -22,6 +25,9 @@
     --accent-text: #10131c;
     --error: #f2877b;
     --error-bg: #2c1a18;
+    --warn: #f0c36a;
+    --warn-bg: #2b2414;
+    --backdrop: rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
 }
@@ -47,6 +53,41 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tabs button {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.tabs button[aria-pressed="true"] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
 }
 
 .transcript {
@@ -118,4 +159,179 @@ body {
 .composer button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Log and grant panels. */
+.panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+.panel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-bar h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.panel button,
+.dialog button {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.panel button:disabled,
+.dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.panel-status,
+.panel-empty,
+.muted {
+  color: var(--muted);
+}
+
+.panel-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.panel-table th,
+.panel-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.panel-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cell-scope {
+  overflow-wrap: anywhere;
+}
+
+.row-failed td:nth-child(4) {
+  color: var(--error);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Permission dialog. */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--backdrop);
+}
+
+.dialog {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.25);
+}
+
+.dialog-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.dialog-warning {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--warn);
+  background: var(--warn-bg);
+  font-weight: 600;
+}
+
+.dialog-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0 0 8px;
+}
+
+.dialog-facts dt {
+  color: var(--muted);
+}
+
+.dialog-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dialog-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dialog-action {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font: 13px/1.45 "Cascadia Mono", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dialog-error {
+  margin: 8px 0 0;
+  color: var(--error);
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dialog button.primary {
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent);
+  border-color: var(--accent);
 }
