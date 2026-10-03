@@ -16,8 +16,8 @@ paths:
 ## main
 
 - Main creates windows, registers the global hotkey (default Ctrl+Alt+Space),
-  handles push-to-talk, spawns `agent` and `host` as Electron utility processes,
-  and routes IPC between them and the renderer.
+  handles push-to-talk, starts `agent` as a hidden sandboxed renderer (ADR 0004)
+  and `host` as an Electron utility process, and routes IPC between them and the UI.
 - Main does not implement capabilities and does not decide approvals. It
   forwards approval requests from host to ui and the answers back.
 - Validate every message crossing a process boundary against its shared schema.

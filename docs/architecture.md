@@ -26,12 +26,13 @@ Source of truth for *how* Stage 1 is built. Exported from the planning doc on 20
             +-------+---------------+-------+
                     |               |
    +----------------+---+       +---+--------------------+
-   | agent (utility)    | <---> | host (utility)         |
-   | agent loop, plan,  | req / | permission engine,     |
-   | budget, stop,      | result| grants, tiers,         |
-   | model adapter,     |       | capabilities, audit    |
-   | context, memory    |       | log, undo              |
-   | CANNOT touch OS    |       | ONLY process w/ OS     |
+   | agent (hidden      | <---> | host (utility)         |
+   | sandboxed renderer)| req / | permission engine,     |
+   | agent loop, plan,  | result| grants, tiers,         |
+   | budget, stop,      |       | capabilities, audit    |
+   | model adapter,     |       | log, undo              |
+   | context, memory    |       |                        |
+   | NO Node, NO OS     |       | ONLY process w/ OS     |
    +---------+----------+       +-----------+------------+
              |                              |
         Model API                Your machine: files, shell, apps,
@@ -40,7 +41,15 @@ Source of truth for *how* Stage 1 is built. Exported from the planning doc on 20
 ```
 
 Approval dialogs travel host -> main -> ui -> back. The agent never sees or skips them.
-Agent and host run as Electron utility processes: one install, separate processes.
+One install, separate processes:
+
+- **agent** is a hidden `BrowserWindow` with `sandbox: true`, `contextIsolation: true`,
+  `nodeIntegration: false` (ADR 0004). It has no Node at all, so no `fs`, `child_process`,
+  workers or native addons exist for it to call. Its page CSP has `connect-src 'none'`
+  (milestone 3 allows only the model API host), and its session cancels every request
+  except its own two files. It talks to main over one `MessagePort`; its preload only
+  hands that port in and exposes nothing else.
+- **host** is an Electron utility process (full Node), the only process that touches the OS.
 
 ## How a task flows ("why is this build failing?")
 

@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { CHAT_SEND, type Log } from "@totum/shared";
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { AgentClient } from "./agent-client.js";
+import { createAgentChild } from "./agent-window.js";
 import { handleChatSend } from "./chat.js";
 import { handleHostMessage } from "./host-messages.js";
 import type { SenderInfo, TrustedRenderer } from "./sender.js";
@@ -16,7 +17,13 @@ const agentClient = new AgentClient({ post: (message) => agent.post(message), lo
 
 const agent = new Supervisor({
   name: "agent",
-  spawn: () => forkUtility(join(import.meta.dirname, "agent.js"), "Totum agent"),
+  // A hidden sandboxed renderer, not a utility process (ADR 0004).
+  spawn: () =>
+    createAgentChild({
+      pagePath: join(import.meta.dirname, "../agent/index.html"),
+      preloadPath: join(import.meta.dirname, "../agent-preload/agent.cjs"),
+      log,
+    }),
   log,
   onMessage: (message) => agentClient.receive(message),
   onUp: () => agentClient.markUp(),
@@ -53,6 +60,9 @@ function createWindow(): void {
   // The window only ever shows our page: no navigation, no pop-ups.
   win.webContents.on("will-navigate", (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
+  // The hidden agent window doesn't count: closing this window quits the app.
+  win.on("closed", () => app.quit());
 
   void win.loadURL(url);
 }

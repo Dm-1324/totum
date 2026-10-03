@@ -2,22 +2,22 @@
  * The one rule (see CLAUDE.md), enforced on every `pnpm lint`:
  * only packages/host may touch the OS.
  */
-const OS = "^(node:)?(fs|fs/promises|child_process|net|http|https|http2|os|worker_threads|cluster|dgram|tls|dns)$";
-
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
     {
-      name: "agent-no-os",
+      name: "agent-no-node",
       severity: "error",
-      comment: "packages/agent decides but never acts. Request a capability from host over IPC.",
+      comment:
+        "packages/agent runs in a sandboxed renderer with no Node (ADR 0004) and never acts: " +
+        "no Node built-ins at all. Request a capability from host over IPC.",
       from: { path: "^packages/agent/src" },
-      to: { dependencyTypes: ["core"], path: OS },
+      to: { dependencyTypes: ["core"] },
     },
     {
       name: "agent-no-electron",
       severity: "error",
-      comment: "packages/agent runs as a utility process and must not use Electron APIs.",
+      comment: "packages/agent runs in a sandboxed renderer and must not use Electron APIs (ADR 0004).",
       from: { path: "^packages/agent/src" },
       to: { path: "^electron$|node_modules/electron/" },
     },

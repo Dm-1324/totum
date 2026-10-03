@@ -1,8 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "noEmit": true
   },
-  "include": ["electron.vite.config.ts"]
+  "include": [
+    "electron.vite.config.ts",
+    "agent.vite.config.ts",
+    "agent-preload.vite.config.ts"
+  ]
 }

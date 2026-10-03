@@ -2,7 +2,7 @@
   "name": "@totum/agent",
   "private": true,
   "version": "0.0.0",
-  "description": "Utility process: agent loop, model adapter, context, memory. Never touches the OS.",
+  "description": "Agent loop, model adapter, context, memory. Runs in a hidden sandboxed renderer; never touches the OS.",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

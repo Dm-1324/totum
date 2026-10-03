@@ -1,7 +1,7 @@
 # 0001: Electron + TypeScript monorepo with process-per-package
 
 - Date: 2026-10-03
-- Status: accepted
+- Status: accepted; the agent's process type is superseded by 0004
 - Milestone: 0
 
 ## Context
@@ -35,3 +35,8 @@ dependency-cruiser 18 supports TypeScript `<7`. With TypeScript 7 installed,
 `pnpm lint` silently skips TypeScript imports and misses violations (verified
 with a planted `node:fs` import in packages/agent). Keep `typescript@~6.0`
 until dependency-cruiser supports 7, then re-verify with a planted violation.
+
+## Note: agent process type (2026-10-03)
+The agent no longer runs as a utility process: Electron's utility process
+ignores Node's `--permission` flag. It runs as a hidden sandboxed renderer.
+See ADR 0004. Host stays a utility process.

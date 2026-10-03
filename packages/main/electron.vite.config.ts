@@ -3,10 +3,10 @@ import { defineConfig } from "electron-vite";
 
 const dir = import.meta.dirname;
 
-// One build for every process. The renderer lives in packages/ui; main only
-// points at it. Agent and host are extra entries of the main build, with all
-// dependencies bundled so no process loads anything from node_modules at runtime.
-// Entries share chunks (zod, schemas) under out/main/chunks.
+// Builds main, the host utility process, the UI preload and the UI renderer.
+// The agent page and its preload have their own single-file builds:
+// agent.vite.config.ts and agent-preload.vite.config.ts (ADR 0004).
+// Dependencies are bundled so no process loads anything from node_modules.
 export default defineConfig({
   main: {
     build: {
@@ -14,7 +14,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(dir, "src/index.ts"),
-          agent: resolve(dir, "../agent/src/index.ts"),
           host: resolve(dir, "../host/src/index.ts"),
         },
       },

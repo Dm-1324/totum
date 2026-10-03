@@ -22,9 +22,9 @@ Never work around it; if a task seems to need it, stop and ask.
 ## Packages
 
 - `shared`: capability contract, IPC message schemas (zod), shared types. No runtime OS access.
-- `main`: Electron main process. Windows, global hotkey, push-to-talk, IPC routing, spawning utility processes.
+- `main`: Electron main process. Windows, global hotkey, push-to-talk, IPC routing, starting the agent window and host process.
 - `ui`: sandboxed renderer. Command bar, task view, approval dialogs.
-- `agent`: utility process. Agent loop, model adapter, context, memory, budgets.
+- `agent`: hidden sandboxed renderer, no Node (ADR 0004). Agent loop, model adapter, context, memory, budgets.
 - `host`: utility process. Permission engine, grants, tiers, capabilities, audit log, undo.
 
 ## Commands (run from repo root, PowerShell or Git Bash)

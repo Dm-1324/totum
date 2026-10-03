@@ -6,3 +6,10 @@ export const MAX_TEXT_LENGTH = 10_000;
 
 /** ui -> main request/reply channel; see chat.ts. */
 export const CHAT_SEND = "chat.send";
+
+/**
+ * main -> agent preload -> agent page: hands over the MessagePort that carries
+ * MainToAgent / AgentToMain (see agent.ts). The handshake has no payload; the
+ * port is the only thing transferred, and the page accepts only the first one.
+ */
+export const AGENT_PORT_CHANNEL = "agent.port";

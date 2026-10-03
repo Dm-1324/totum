@@ -1,22 +1,23 @@
-// @totum/agent: Utility process: agent loop, model adapter, context, memory. Never touches the OS.
-// Entry point when main forks this as an Electron utility process.
-import type { Log } from "@totum/shared";
+// @totum/agent: agent loop, model adapter, context, memory. Never touches the OS.
+// Runs in a hidden, sandboxed renderer (ADR 0004): no Node, no electron, no
+// network beyond what the page CSP and session filter allow. Main talks to it
+// over one MessagePort, handed in by the agent preload.
+import { AGENT_PORT_CHANNEL, type Log } from "@totum/shared";
 import { handleMessage } from "./handler.js";
 
-/** The part of Electron's process.parentPort we use; avoids importing electron. */
-interface ParentPort {
-  on(event: "message", listener: (event: { data: unknown }) => void): void;
-  postMessage(message: unknown): void;
-}
+// Console output is forwarded to main's log (console-message event).
+const log: Log = (level, message, data) => console[level](data ? `${message} ${JSON.stringify(data)}` : message);
 
-const port = (process as unknown as { parentPort?: ParentPort }).parentPort;
-if (!port) {
-  throw new Error("agent must run as an Electron utility process");
-}
+let port: MessagePort | undefined;
 
-const log: Log = (level, message, data) => console[level](message, data ?? "");
-
-port.on("message", ({ data }) => {
-  const reply = handleMessage(data, log);
-  if (reply) port.postMessage(reply);
+window.addEventListener("message", (event) => {
+  // Accept exactly one port, from the preload in this window.
+  if (port || event.source !== window || event.data !== AGENT_PORT_CHANNEL) return;
+  const received = event.ports[0];
+  if (!received) return;
+  port = received;
+  received.onmessage = (message) => {
+    const reply = handleMessage(message.data, log);
+    if (reply) received.postMessage(reply);
+  };
 });

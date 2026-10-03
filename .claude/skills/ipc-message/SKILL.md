@@ -14,7 +14,8 @@ State: sender -> receiver, and whether it's a request/reply or a one-way event.
 Allowed routes:
 
 - ui <-> main (via the preload bridge only)
-- main <-> agent, main <-> host (utility process ports)
+- main <-> agent (the MessagePort handed into the agent window; ADR 0004)
+- main <-> host (utility process port)
 - agent <-> host (capability requests and results, routed by main or a direct
   MessagePort that main sets up)
 

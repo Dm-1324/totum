@@ -2,14 +2,15 @@
   "name": "@totum/main",
   "private": true,
   "version": "0.0.0",
-  "description": "Electron main process: windows, hotkey, push-to-talk, IPC routing, utility processes.",
+  "description": "Electron main process: windows, hotkey, push-to-talk, IPC routing, agent window and host process.",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "node -e \"require('electron')\" && electron-vite dev",
-    "build": "electron-vite build",
+    "dev": "node -e \"require('electron')\" && pnpm run build:agent && electron-vite dev",
+    "build": "electron-vite build && pnpm run build:agent",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.config.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build:agent": "vite build -c agent.vite.config.ts && vite build -c agent-preload.vite.config.ts"
   },
   "devDependencies": {
     "electron": "^44.5.1",
