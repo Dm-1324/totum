@@ -137,6 +137,35 @@ describe("PermissionEngine: approvals", () => {
     expect(approval?.kind === "approval" && approval.action).toContain("Here is my resume");
   });
 
+  it("shows a maximum-length message in full, never shortened", async () => {
+    const { engine } = makeEngine();
+    const body = "a".repeat(10_000 - "TAIL-SECRET".length) + "TAIL-SECRET";
+    const user = scriptedUser([allowSession, approve]);
+    await engine.call(call("test.send", { to: "a@b.c", body }), user.ask);
+    const approval = user.asks[1];
+    expect(approval?.kind === "approval" && approval.action).toContain(body);
+    expect(PermissionAsk.safeParse(approval).success).toBe(true);
+  });
+
+  it("refuses, before asking anything, an action too long to show in full", async () => {
+    const verbose: Capability<{ text: string }, { text: string }> = {
+      id: "test.verbose",
+      tier: 2,
+      description: "Test only.",
+      input: TestEchoInput,
+      output: TestEchoOutput,
+      scopeOf: () => ({ kind: "app", app: "x" }),
+      describe: (input) => input.text.repeat(2),
+      run: async (input) => ({ ok: true, output: input, untrusted: false }),
+    };
+    const { engine, audit } = makeEngine({ capabilities: () => [erase(verbose)] });
+    const user = scriptedUser([]);
+    const result = await engine.call(call("test.verbose", { text: "x".repeat(8_001) }), user.ask);
+    expect(result).toMatchObject({ ok: false, code: "too_long_to_show", hint: expect.stringContaining("smaller steps") });
+    expect(user.asks).toEqual([]);
+    expect(audit.list()[0]).toMatchObject({ outcome: "too_long_to_show", approver: "none" });
+  });
+
   it("maps no answer to approval_timeout and runs nothing", async () => {
     const { engine, db } = makeEngine();
     const user = scriptedUser([allowSession, timeout]);

@@ -19,8 +19,15 @@ export const CapabilityCall = z
   .strict();
 export type CapabilityCall = z.infer<typeof CapabilityCall>;
 
-/** Plain words for a dialog: what will run, on what. Capped so a hostile input can't flood the UI. */
-export const AskText = z.string().min(1).max(2_000);
+/**
+ * Longest action an approval dialog shows. Above the longest message text, so
+ * a describe() quoting a full message fits. Longer actions are refused, never
+ * shortened: the user must see everything that will run.
+ */
+export const MAX_ACTION_LENGTH = 16_000;
+
+/** Plain words for a dialog: what will run, on what, in full. */
+export const AskText = z.string().min(1).max(MAX_ACTION_LENGTH);
 
 /** The host asks the user: may this capability touch this scope (grant), or may this exact call run (approval)? */
 export const PermissionAsk = z.discriminatedUnion("kind", [

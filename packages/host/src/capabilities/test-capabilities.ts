@@ -26,7 +26,8 @@ export const TEST_APP: Scope = { kind: "app", app: "totum-test" };
 export const NOTES_APP: Scope = { kind: "app", app: "totum-test-notes" };
 export const OUTBOX_ACCOUNT: Scope = { kind: "account", account: "totum-test-outbox" };
 
-const quote = (text: string, max = 200) => `"${text.length > max ? text.slice(0, max) + "…" : text}"`;
+/** Quotes user text in full: a describe() never shortens what will run. */
+const quote = (text: string) => JSON.stringify(text);
 
 function readNote(db: Db, id: number): string | undefined {
   const row = db.prepare("select text from test_notes where id = ?").get(id);
@@ -95,7 +96,7 @@ export function createTestCapabilities(db: Db): AnyCapability[] {
     ...testSendSpec,
     scopeOf: () => OUTBOX_ACCOUNT,
     describe: (input) =>
-      `Send from ${OUTBOX_ACCOUNT.kind === "account" ? OUTBOX_ACCOUNT.account : ""} to ${input.to}: ${quote(input.body, 1500)} ` +
+      `Send from ${OUTBOX_ACCOUNT.kind === "account" ? OUTBOX_ACCOUNT.account : ""} to ${input.to}: ${quote(input.body)} ` +
       "(test only: it goes to a local outbox)",
     run: async (input) => {
       db.prepare("insert into test_outbox (recipient, body) values (?, ?)").run(input.to, input.body);

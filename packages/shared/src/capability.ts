@@ -44,6 +44,7 @@ export const EngineErrorCode = z.enum([
   "approval_timeout",
   "run_failed",
   "verify_failed",
+  "too_long_to_show",
   "stopped",
   "not_undoable",
   "undo_failed",

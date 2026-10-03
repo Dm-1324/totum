@@ -8,6 +8,7 @@ import {
   describeIssues,
   type GrantLifetime,
   type Log,
+  MAX_ACTION_LENGTH,
   type PermissionAsk,
   type PermissionDecision,
   type Result,
@@ -41,7 +42,6 @@ export const MAX_GRANT_PROMPTS_PER_TASK = 3;
 /** Tasks whose denials and prompt counts are remembered (oldest forgotten first). */
 const MAX_TRACKED_TASKS = 100;
 const MAX_SUMMARY = 10_000;
-const MAX_ACTION = 2_000;
 
 export interface EngineOptions {
   capabilities: readonly AnyCapability[];
@@ -141,7 +141,8 @@ export class PermissionEngine {
     let redacted: unknown;
     try {
       scope = canonicalScope(capability.scopeOf(input), this.options.fs);
-      action = clip(capability.describe(input), MAX_ACTION);
+      // Never shortened: the user must see everything that will run.
+      action = capability.describe(input);
       redacted = capability.redact ? capability.redact(input) : input;
     } catch (error) {
       log("error", "host: capability failed to describe its call", { capability: capability.id, error: String(error) });
@@ -158,6 +159,18 @@ export class PermissionEngine {
         "invalid_input",
         `Totum can't tell exactly what ${capability.id} would touch with this input.`,
         "Use a full path such as C:\\Users\\you\\Documents, without device prefixes, streams or trailing dots.",
+      );
+    }
+    if (action.length > MAX_ACTION_LENGTH) {
+      // Approval dialogs show the whole action or nothing; a cut-off one could hide what really runs.
+      audit.record(
+        { taskId: call.taskId, capability: capability.id, tier: capability.tier, scope, input: redacted },
+        { outcome: "too_long_to_show", approver: "none", untrusted: false },
+      );
+      return fail(
+        "too_long_to_show",
+        `This ${capability.id} call is too long to show the user in full (over ${MAX_ACTION_LENGTH} characters).`,
+        "Split it into smaller steps.",
       );
     }
 
