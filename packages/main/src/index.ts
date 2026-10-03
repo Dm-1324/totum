@@ -1,7 +1,7 @@
 // @totum/main: Electron main process: windows, hotkey, push-to-talk, IPC routing, utility processes.
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CHAT_SEND, type Log } from "@totum/shared";
+import { CHAT_SEND, hostDbArg, type Log } from "@totum/shared";
 import { app, BrowserWindow, ipcMain, session, type IpcMainInvokeEvent } from "electron";
 import { AgentClient } from "./agent-client.js";
 import { createAgentChild } from "./agent-window.js";
@@ -32,7 +32,11 @@ const agent = new Supervisor({
 
 const host = new Supervisor({
   name: "host",
-  spawn: () => forkUtility(join(import.meta.dirname, "host.js"), "Totum host"),
+  // Host has no `app`, so main tells it where its database lives.
+  spawn: () =>
+    forkUtility(join(import.meta.dirname, "host.js"), "Totum host", [
+      hostDbArg(join(app.getPath("userData"), "totum.db")),
+    ]),
   log,
   onMessage: (message) => handleHostMessage(message, log),
 });

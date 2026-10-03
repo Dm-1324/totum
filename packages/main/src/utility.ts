@@ -2,8 +2,8 @@ import { utilityProcess } from "electron";
 import type { Child } from "./supervisor.js";
 
 /** Forks an Electron utility process and adapts it to the supervisor's Child. */
-export function forkUtility(modulePath: string, serviceName: string): Child {
-  const proc = utilityProcess.fork(modulePath, [], { serviceName, stdio: "inherit" });
+export function forkUtility(modulePath: string, serviceName: string, args: string[] = []): Child {
+  const proc = utilityProcess.fork(modulePath, args, { serviceName, stdio: "inherit" });
   return {
     get pid() {
       return proc.pid;

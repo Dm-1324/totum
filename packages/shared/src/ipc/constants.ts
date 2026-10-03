@@ -4,6 +4,10 @@
 /** Longest message text accepted at any process boundary, in UTF-16 code units. */
 export const MAX_TEXT_LENGTH = 10_000;
 
+/** The host's command-line argument carrying its database path: `--db=<path>`. */
+export const HOST_DB_ARG = "--db=";
+export const hostDbArg = (path: string): string => HOST_DB_ARG + path;
+
 /** ui -> main request/reply channel; see chat.ts. */
 export const CHAT_SEND = "chat.send";
 
