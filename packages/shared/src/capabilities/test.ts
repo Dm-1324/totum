@@ -14,7 +14,7 @@ export const testEchoSpec: CapabilitySpec<TestEchoInput, TestEchoOutput> = {
   id: "test.echo",
   tier: 0,
   description:
-    "Test only. Returns the text you send, unchanged. Use to check that a granted tier-0 call works. " +
+    "Test only. Returns the text you send, unchanged but marked untrusted, as if read from outside. " +
     'Example input: {"text":"hello"}',
   input: TestEchoInput,
   output: TestEchoOutput,

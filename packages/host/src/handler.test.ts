@@ -61,7 +61,7 @@ describe("host handler", () => {
     expect(posted[1]).toEqual({
       type: "capability.result",
       id: id(1),
-      result: { ok: true, output: { text: "hi" }, untrusted: false },
+      result: { ok: true, output: { text: "hi" }, untrusted: true },
     });
     expect(handler.openAsks).toBe(0);
   });

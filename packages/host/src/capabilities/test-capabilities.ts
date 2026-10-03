@@ -50,7 +50,8 @@ export function createTestCapabilities(db: Db): AnyCapability[] {
     ...testEchoSpec,
     scopeOf: () => TEST_APP,
     describe: (input) => `Echo back the text ${quote(input.text)}`,
-    run: async (input) => ({ ok: true, output: { text: input.text }, untrusted: false }),
+    // Marked untrusted, like text read from a file or page, so the taint path can be seen in dev.
+    run: async (input) => ({ ok: true, output: { text: input.text }, untrusted: true }),
   };
 
   const note: Capability<TestNoteInput, TestNoteOutput> = {

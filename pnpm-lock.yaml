@@ -39,6 +39,9 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@totum/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@totum/host':
         specifier: workspace:*
         version: link:../host

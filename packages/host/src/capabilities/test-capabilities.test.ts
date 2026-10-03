@@ -62,7 +62,7 @@ describe.each(cases)("$id (tier $tier)", ({ id, input, scope, tier }) => {
         input: JSON.stringify(input),
         outcome: "ok",
         approver: "user",
-        untrusted: false,
+        untrusted: id === "test.echo",
         undoable: tier === 1,
       }),
     ]);
@@ -122,10 +122,10 @@ describe.each(cases)("$id (tier $tier)", ({ id, input, scope, tier }) => {
 });
 
 describe("test.echo", () => {
-  it("returns the text unchanged", async () => {
+  it("returns the text unchanged, marked untrusted", async () => {
     const f = makeEngine();
     const result = await f.engine.call(call("test.echo", { text: "héllo <b>x</b>" }), scriptedUser([allowSession]).ask);
-    expect(result).toEqual({ ok: true, output: { text: "héllo <b>x</b>" }, untrusted: false });
+    expect(result).toEqual({ ok: true, output: { text: "héllo <b>x</b>" }, untrusted: true });
   });
 });
 

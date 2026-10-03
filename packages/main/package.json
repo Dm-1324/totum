@@ -6,13 +6,15 @@
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "node -e \"require('electron')\" && pnpm run build:agent && electron-vite dev",
+    "dev": "node -e \"require('electron')\" && pnpm run build:agent:dev && electron-vite dev",
     "build": "electron-vite build && pnpm run build:agent",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.config.json",
     "test": "vitest run --passWithNoTests",
-    "build:agent": "vite build -c agent.vite.config.ts && vite build -c agent-preload.vite.config.ts"
+    "build:agent": "vite build -c agent.vite.config.ts && vite build -c agent-preload.vite.config.ts",
+    "build:agent:dev": "vite build -c agent.vite.config.ts --mode development && vite build -c agent-preload.vite.config.ts"
   },
   "devDependencies": {
+    "@totum/agent": "workspace:*",
     "@totum/host": "workspace:*",
     "electron": "^44.5.1",
     "electron-vite": "^5.0.0",

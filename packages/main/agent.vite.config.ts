@@ -7,7 +7,11 @@ const dir = import.meta.dirname;
 // One script, every dependency inlined, no module-preload helper, no other
 // assets, so the page CSP (script-src 'self') and the session filter
 // (files in out/agent only) describe everything the agent can load.
-export default defineConfig({
+//
+// __TOTUM_DEV__ follows the mode: `pnpm dev` builds with --mode development
+// (test capabilities and /call), `pnpm build` in production mode (neither).
+export default defineConfig(({ mode }) => ({
+  define: { __TOTUM_DEV__: JSON.stringify(mode !== "production") },
   root: resolve(dir, "../agent"),
   base: "./",
   logLevel: "warn",
@@ -21,4 +25,4 @@ export default defineConfig({
       output: { entryFileNames: "agent.js", inlineDynamicImports: true },
     },
   },
-});
+}));
