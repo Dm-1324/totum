@@ -37,7 +37,11 @@ importers:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@26.6.4)(lightningcss@1.33.0)
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
 
   packages/ui: {}
 
@@ -1317,6 +1321,9 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
 snapshots:
 
   '@babel/code-frame@7.29.7':
@@ -2274,3 +2281,5 @@ snapshots:
   why-is-node-running@3.2.1: {}
 
   yallist@3.1.1: {}
+
+  zod@4.6.5: {}
