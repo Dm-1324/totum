@@ -17,7 +17,7 @@ const id = "3f1c2a9e-7b4d-4e2a-9c1f-5a6b7c8d9e0f";
 // Every schema with a valid sample. Each one gets the unknown-field test.
 const schemas: Array<[string, z.ZodType, Record<string, unknown>]> = [
   ["ChatSendRequest", ChatSendRequest, { text: "hello" }],
-  ["ChatSendReply", ChatSendReply, { text: "hello" }],
+  ["ChatSendReply ok", ChatSendReply, { ok: true, text: "hello" }],
   ["AgentMessage", AgentMessage, { type: "agent.message", id, text: "hello" }],
   ["AgentReply", AgentReply, { type: "agent.reply", id, text: "hello" }],
   ["HostReady", HostReady, { type: "host.ready" }],
@@ -28,6 +28,8 @@ const schemas: Array<[string, z.ZodType, Record<string, unknown>]> = [
 
 // The schemas carrying user or agent text. Each one gets the length tests.
 const textSchemas = schemas.filter(([, , sample]) => "text" in sample);
+
+const chatError = { ok: false, code: "agent_timeout", message: "The agent didn't answer." };
 
 describe.each(schemas)("%s", (_name, schema, sample) => {
   it("accepts a valid payload unchanged", () => {
@@ -75,6 +77,30 @@ describe.each(textSchemas)("%s text", (_name, schema, sample) => {
   it("rejects missing text", () => {
     const { text: _omit, ...rest } = sample;
     expect(schema.safeParse(rest).success).toBe(false);
+  });
+});
+
+describe("ChatSendReply error", () => {
+  it("accepts an error result", () => {
+    expect(ChatSendReply.parse(chatError)).toEqual(chatError);
+  });
+
+  it("rejects an unknown field", () => {
+    expect(ChatSendReply.safeParse({ ...chatError, extra: "x" }).success).toBe(false);
+  });
+
+  it("rejects an unknown error code", () => {
+    expect(ChatSendReply.safeParse({ ...chatError, code: "boom" }).success).toBe(false);
+  });
+
+  it("rejects a message over the cap", () => {
+    const message = "a".repeat(MAX_TEXT_LENGTH + 1);
+    expect(ChatSendReply.safeParse({ ...chatError, message }).success).toBe(false);
+  });
+
+  it("rejects mixing the ok and error shapes", () => {
+    expect(ChatSendReply.safeParse({ ok: true, code: "agent_timeout", message: "x" }).success).toBe(false);
+    expect(ChatSendReply.safeParse({ ok: false, text: "hello" }).success).toBe(false);
   });
 });
 

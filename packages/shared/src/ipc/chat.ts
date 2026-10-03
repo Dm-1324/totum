@@ -9,5 +9,13 @@ export const CHAT_SEND = "chat.send";
 export const ChatSendRequest = z.object({ text: MessageText }).strict();
 export type ChatSendRequest = z.infer<typeof ChatSendRequest>;
 
-export const ChatSendReply = z.object({ text: MessageText }).strict();
+/** Why a chat.send failed. The UI shows `message`; `code` is for logic. */
+export const ChatErrorCode = z.enum(["invalid_request", "agent_timeout", "agent_unavailable"]);
+export type ChatErrorCode = z.infer<typeof ChatErrorCode>;
+
+/** A chat.send always resolves with one of these; it never throws to the UI. */
+export const ChatSendReply = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), text: MessageText }).strict(),
+  z.object({ ok: z.literal(false), code: ChatErrorCode, message: MessageText }).strict(),
+]);
 export type ChatSendReply = z.infer<typeof ChatSendReply>;

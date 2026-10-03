@@ -21,11 +21,23 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2))
 
-  packages/agent: {}
+  packages/agent:
+    dependencies:
+      '@totum/shared':
+        specifier: workspace:*
+        version: link:../shared
 
-  packages/host: {}
+  packages/host:
+    dependencies:
+      '@totum/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/main:
+    dependencies:
+      '@totum/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       electron:
         specifier: ^44.5.1

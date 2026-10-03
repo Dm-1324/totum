@@ -8,12 +8,15 @@
   "scripts": {
     "dev": "node -e \"require('electron')\" && electron-vite dev",
     "build": "electron-vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.config.json",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "electron": "^44.5.1",
     "electron-vite": "^5.0.0",
     "vite": "^7.3.6"
+  },
+  "dependencies": {
+    "@totum/shared": "workspace:*"
   }
 }
