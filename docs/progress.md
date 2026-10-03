@@ -5,27 +5,32 @@ The handoff note between Claude Code sessions. Read it first; update it last
 
 ## Current state
 
-- Milestone 1 closed. `pnpm dev` opens the React UI; a message goes ui -> preload
-  -> main -> agent -> back ("agent: hello"). `chat.send` always answers: reply,
-  `agent_timeout` (10 s), `agent_unavailable`, `invalid_request` or `untrusted_sender`.
-- Agent runs in a hidden sandboxed renderer (ADR 0004): no Node, CSP
-  `connect-src 'none'; worker-src 'none'`, own session blocking all but its two
-  files, MessagePort-only preload. Proven in real Electron by
-  `packages/main/src/agent-sandbox.test.ts`.
-- Host is a utility process that announces `host.ready` and rejects all messages.
-- main supervises both: restart with backoff, gives up after 3 crashes in 60 s,
-  clean stop on quit. Replies matched by id; unknown/duplicate/late ones dropped.
-- `pnpm lint`: dependency-cruiser allow-lists for agent, ui and shared (closes
-  indirect paths), plus `scripts/check-no-raw-html.mjs` for packages/ui.
-- 182 tests green. Boundary-reviewer on the milestone 1 diff: PASS (third pass).
+- Milestone 1 closed. Milestone 2 (permission spine) is **half done**: slices 1-4 of
+  `docs/plans/m2.md` landed; 5-7 remain. 374 tests green; typecheck and lint clean.
+- Contract in `packages/shared/src/capability.ts` (ADR 0005). Host has SQLite via
+  `node:sqlite` (no native module), `GrantStore`, `AuditLog`, and `PermissionEngine`, the
+  one path to `run`, enforcing the user's grant rules (exact scope, `always` only tier 0/1
+  and never when untrusted-shaped, denials remembered per task, max 3 prompts per task).
+- `test.echo/note/danger/send` registered only under `__TOTUM_DEV__` (absent from
+  production bundles; checked by hand, test due in slice 7).
+- IPC: agent -> main -> host capability calls; host -> main -> ui permission asks;
+  ui -> main -> host log/grant queries. Main stamps the task id (the one chat message in
+  flight; else `no_task`), holds the agent's chat timeout while an ask is open, expires
+  asks after 5 min, and marks the agent tainted once untrusted content reaches it.
+- Done-when proven in tests only: `packages/main/src/permission-flow.test.ts`. Not yet in
+  the running app: there is no dialog or log UI (slice 5) and no `/call` trigger (slice 6).
 
 ## Next
 
-**Milestone 2: permission spine.** Run `/milestone 2`.
+**Milestone 2, slices 5-7** (see `docs/plans/m2.md`). No `/milestone` needed; read the plan.
 Done when: a tier-2 call blocks until approved; every call appears in the log.
-Notes for it: host gets its first messages (capability requests), SQLite arrives
-(native module: rebuild for Electron's ABI, record in the ADR), and approval
-dialogs go host -> main -> ui. The UI session denies every permission today.
+- 5: permission dialog + log panel + grant list in `packages/ui`. Preload API and
+  `fakeApi()` (`packages/ui/src/fake-api.ts`) exist. Subscribe to `onPermissionAsk` in
+  `main.tsx` before render (an ask sent before React mounts is otherwise missed;
+  main re-shows open asks on `did-finish-load`).
+- 6: agent `/call`, built on `AgentCall` / `AgentCapabilityRequest` (no task id).
+- 7: `production-build.test.ts`, `host-db.process.test.ts`, manual `pnpm dev` check,
+  add-capability skill text for "ask when missing", boundary-reviewer on the whole M2 diff.
 
 ## Done
 
@@ -42,13 +47,17 @@ dialogs go host -> main -> ui. The UI session denies every permission today.
 
 ## Known issues and notes for later
 
-- Milestone 3: main logs the agent's console output (`agent-window.ts`, console-message);
-  Chromium's CSP warnings include the blocked URL, which may carry untrusted text.
-  Trim or redact URLs before logging. Same milestone: allow only the model API host
-  in both the agent CSP (`packages/agent/index.html`) and the session filter (`agent-request.ts`).
-- Dev: `pnpm dev` builds the agent page and preload once at start; agent code
-  changes need an app restart (no watch for `agent*.vite.config.ts`).
-- electron-vite's preload `isolatedEntries` crashes when stdout isn't a TTY;
-  that's why the agent preload has its own Vite build (ADR 0002).
-- `agent-sandbox.test.ts` launches Electron and takes ~10 s; it needs a desktop
-  session (hidden windows), so it may need care in CI.
+- Security reviews ran in the background during slices 2-4; fixes are separate
+  `m2:` commits. Several findings came without details, so fixes for "authorization"
+  findings were best guesses (task id stamping, taint): worth a look from boundary-reviewer.
+- Taint (`AgentTaint`, `packages/main/src/router.ts`) lasts until the agent restarts, so
+  after any untrusted read every call asks approval. M3: narrow it to a conversation reset.
+- Failed results carry no `untrusted` flag: error messages must stay host-written, never
+  quote file or command text, or the contract needs a flag on errors (M4/M5).
+- Folder scopes: drive-letter paths only (UNC refused: NTLM leak); links resolved before
+  grant checks. M4 file capabilities must act on the canonical path (TOCTOU), see `grants.ts`.
+- Approval dialog has no Edit yet (ui rules list Approve / Edit / Reject); planned for M5.
+- Milestone 3: trim URLs from agent console logs (`agent-window.ts`); allow only the model
+  API host in the agent CSP and session filter (`agent-request.ts`).
+- Dev: agent code changes need an app restart (no watch for `agent*.vite.config.ts`).
+- `agent-sandbox.test.ts` launches Electron (~10 s) and needs a desktop session.
