@@ -44,6 +44,9 @@ export const EngineErrorCode = z.enum([
   "approval_timeout",
   "run_failed",
   "verify_failed",
+  "stopped",
+  "not_undoable",
+  "undo_failed",
   "host_unavailable",
 ]);
 export type EngineErrorCode = z.infer<typeof EngineErrorCode>;
@@ -101,10 +104,12 @@ export const AuditEntry = z
   .strict();
 export type AuditEntry = z.infer<typeof AuditEntry>;
 
-/** What a tier-1 capability's undo gets back from the call it reverses. */
-export interface UndoRecord<I> {
+/**
+ * What a tier-1 capability's undo gets back from the call it reverses. Only the
+ * token: the stored input is redacted, so undo must not depend on it.
+ */
+export interface UndoRecord {
   entryId: number;
-  input: I;
   token: UndoToken;
 }
 
@@ -126,7 +131,7 @@ export interface Capability<I, O> extends CapabilitySpec<I, O> {
   run(input: I, ctx: RunContext): Promise<Result<O>>;
   verify?(input: I, output: O): Promise<boolean>;
   /** Required for tier 1. Refuses (ok: false) if the state changed since the call. */
-  undo?(record: UndoRecord<I>, ctx: RunContext): Promise<Result<null>>;
+  undo?(record: UndoRecord, ctx: RunContext): Promise<Result<null>>;
   /** Returns the input with secrets removed, for the audit log. Default: the input. */
   redact?(input: I): unknown;
 }

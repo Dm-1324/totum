@@ -39,11 +39,14 @@ Tiers: 0 observe · 1 reversible local · 2 local, hard to undo · 3 leaves the 
 | `browser.*` (Stage 2) | 0-3 |
 | `keyboard.type`, `mouse.control` (Stage 3) | 2 |
 
-## Test capabilities (milestone 2 only)
+## Test capabilities (milestone 2; dev and test builds only)
 
-| Capability | Tier | Purpose |
-| --- | --- | --- |
-| `test.echo` | 0 | Exercises the grant path |
-| `test.note` | 1 | Exercises audit + undo |
-| `test.danger` | 2 | Exercises the approval dialog |
-| `test.send` | 3 | Exercises the tier-3 dialog |
+Registered only when `__TOTUM_DEV__` is true; production bundles leave them out.
+They touch only Totum's own database (`test_notes`, `test_outbox`).
+
+| Capability | Tier | Scope | Purpose | Status |
+| --- | --- | --- | --- | --- |
+| `test.echo` | 0 | app `totum-test` | Exercises the grant path | done |
+| `test.note` | 1 | app `totum-test-notes` | Exercises audit + undo | done |
+| `test.danger` | 2 | app `totum-test-notes` | Exercises the approval dialog (clears notes) | done |
+| `test.send` | 3 | account `totum-test-outbox` | Exercises the tier-3 dialog (local outbox only) | done |

@@ -7,8 +7,12 @@ const dir = import.meta.dirname;
 // The agent page and its preload have their own single-file builds:
 // agent.vite.config.ts and agent-preload.vite.config.ts (ADR 0004).
 // Dependencies are bundled so no process loads anything from node_modules.
-export default defineConfig({
+//
+// __TOTUM_DEV__ is true for `electron-vite dev` and false for a production
+// build; host registers the test capabilities only when it is true (ADR 0005).
+export default defineConfig(({ mode }) => ({
   main: {
+    define: { __TOTUM_DEV__: JSON.stringify(mode !== "production") },
     build: {
       externalizeDeps: false,
       rollupOptions: {
@@ -42,4 +46,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

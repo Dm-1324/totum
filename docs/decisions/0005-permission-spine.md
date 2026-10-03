@@ -17,8 +17,9 @@ log need SQLite, which normally means a native module rebuilt for Electron's ABI
   any process may import it) and `Capability`, which adds `scopeOf`, `describe`,
   `run`, `verify`, `undo` and `redact` and is implemented only in `packages/host`.
 - A successful `Result` may carry an `undo` token (JSON). The host stores it with
-  the audit entry; `undo({ entryId, input, token })` returns a `Result` so it can
-  refuse when the state changed since the call. The audit log never stores outputs.
+  the audit entry; `undo({ entryId, token })` returns a `Result` so it can refuse
+  when the state changed since the call. Undo gets only the token (the stored input
+  is redacted). The audit log never stores outputs.
 - Optional `redact(input)` returns what the audit log stores.
 - `Scope` is `folder { path } | app { app } | account { account }`.
 - `Grant` lifetimes are `session | always`; `task` comes with tasks in milestone 3.

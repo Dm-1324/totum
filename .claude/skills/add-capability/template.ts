@@ -45,7 +45,7 @@ export const example: Capability<ExampleInput, ExampleOutput> = {
   },
 
   // Required for tier 1; delete for tiers 0, 2 and 3.
-  async undo(record: UndoRecord<ExampleInput>, ctx: RunContext): Promise<Result<null>> {
+  async undo(record: UndoRecord, ctx: RunContext): Promise<Result<null>> {
     // TODO: restore the state captured before run, using record.token.
     // Refuse (ok: false, e.g. code "changed_since") if the current state no
     // longer matches what run produced.
