@@ -22,8 +22,12 @@ const pagePath = arg("page");
 const preloadPath = arg("preload");
 const outsideFile = arg("outside-file");
 
-/** Evaluated inside a page. Same code for the agent and the contrast window. */
-const PROBE = `async (urls) => {
+/**
+ * Evaluated inside a page. Same code for the agent and the contrast window.
+ * Workers: "ran" means the worker's script executed (it posted a message, or
+ * threw while running); "blocked" means it never started.
+ */
+const PROBE = `async (urls, workers) => {
   const kinds = {};
   for (const name of ["require", "process", "Buffer", "module", "global", "exports", "__dirname"]) {
     kinds[name] = typeof globalThis[name];
@@ -37,17 +41,36 @@ const PROBE = `async (urls) => {
       fetches[url] = "failed: " + error.name;
     }
   }
-  return { kinds, fetches, globals: Object.getOwnPropertyNames(window).sort() };
+  const tryWorker = (make) => new Promise((resolve) => {
+    let worker;
+    try { worker = make(); } catch (error) { resolve("blocked: threw " + error.name); return; }
+    const timer = setTimeout(() => { worker.terminate(); resolve("blocked: no event"); }, 2000);
+    worker.onmessage = () => { clearTimeout(timer); worker.terminate(); resolve("ran: posted a message"); };
+    worker.onerror = (event) => {
+      clearTimeout(timer);
+      event.preventDefault();
+      resolve(event.message ? "ran: " + event.message : "blocked: error event");
+    };
+  });
+  const workerResults = {};
+  if (workers) {
+    // agent.js is allowed by script-src 'self'; only worker-src stops it running as a worker.
+    workerResults["same-folder file"] = await tryWorker(() => new Worker("./agent.js"));
+    workerResults["blob"] = await tryWorker(() => new Worker(URL.createObjectURL(new Blob(["postMessage(1)"], { type: "text/javascript" }))));
+    workerResults["data"] = await tryWorker(() => new Worker("data:text/javascript,postMessage(1)"));
+  }
+  return { kinds, fetches, workers: workerResults, globals: Object.getOwnPropertyNames(window).sort() };
 }`;
 
 interface ProbeResult {
   kinds: Record<string, string>;
   fetches: Record<string, string>;
+  workers: Record<string, string>;
   globals: string[];
 }
 
-function probe(contents: WebContents, urls: string[]): Promise<ProbeResult> {
-  return contents.executeJavaScript(`(${PROBE})(${JSON.stringify(urls)})`) as Promise<ProbeResult>;
+function probe(contents: WebContents, urls: string[], workers = false): Promise<ProbeResult> {
+  return contents.executeJavaScript(`(${PROBE})(${JSON.stringify(urls)}, ${workers})`) as Promise<ProbeResult>;
 }
 
 function isAlive(pid: number | undefined): boolean {
@@ -96,7 +119,7 @@ async function run() {
   agent.start();
   await until(() => agent.state === "running", "agent to start");
   const first = current!;
-  const agentProbe = await probe(first.webContents, urls);
+  const agentProbe = await probe(first.webContents, urls, true);
   const roundTrip = await client.send("hello");
 
   // 2. Baseline: the same options without the preload, on the same page.

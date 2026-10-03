@@ -4,12 +4,13 @@
     <meta charset="UTF-8" />
     <!--
       The agent page loads exactly one script (its own bundle) and nothing else.
-      connect-src 'none' until milestone 3 allows only the model API host.
+      connect-src 'none' until milestone 3 allows only the model API host;
+      worker-src 'none' so no code runs outside this page's sandboxed context.
       The agent session's webRequest filter enforces the same as a second layer.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <title>Totum agent</title>
   </head>

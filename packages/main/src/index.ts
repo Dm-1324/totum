@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CHAT_SEND, type Log } from "@totum/shared";
-import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, session, type IpcMainInvokeEvent } from "electron";
 import { AgentClient } from "./agent-client.js";
 import { createAgentChild } from "./agent-window.js";
 import { handleChatSend } from "./chat.js";
@@ -81,6 +81,11 @@ ipcMain.handle(CHAT_SEND, (event, raw: unknown) =>
 );
 
 void app.whenReady().then(() => {
+  // The UI window gets no permissions (camera, mic, notifications, ...).
+  // Grant one only when a milestone needs it, and only to the trusted window.
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
+
   agent.start();
   host.start();
   createWindow();

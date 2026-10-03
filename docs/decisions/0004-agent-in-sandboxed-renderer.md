@@ -31,8 +31,9 @@ no devtools, no webview, no spellcheck, in its own in-memory session
 
 - **No Node:** `require`, `process`, `Buffer`, `module` don't exist, so file
   access, child processes, workers and native addons have nothing to call.
-- **No network:** the page CSP is `default-src 'none'; script-src 'self';
-  connect-src 'none'`. As a second layer, the agent session's `webRequest` filter
+- **No network, no workers:** the page CSP is `default-src 'none'; script-src 'self';
+  connect-src 'none'; worker-src 'none'`. Without `worker-src`, the page could run
+  its own `agent.js` as a Web Worker (`script-src 'self'` allows it). As a second layer, the agent session's `webRequest` filter
   cancels every request except files in `out/agent/`, and every permission request
   is refused. Milestone 3 will allow exactly the model API host in both layers.
 - **One channel:** main hands the page one `MessagePort` through a preload that
@@ -47,7 +48,7 @@ no devtools, no webview, no spellcheck, in its own in-memory session
 Proof: `packages/main/src/agent-sandbox.test.ts` builds the real agent page and
 preload, starts the agent with `createAgentChild` (the same code main uses) in
 real Electron, and checks from inside the page that the Node globals are
-undefined and every fetch fails. It also checks that a window with
+undefined, every fetch fails and no Worker starts. It also checks that a window with
 `nodeIntegration` running the same probe does see Node and does reach the local
 server, so the test can detect a leak.
 

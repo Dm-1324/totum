@@ -46,7 +46,7 @@ One install, separate processes:
 - **agent** is a hidden `BrowserWindow` with `sandbox: true`, `contextIsolation: true`,
   `nodeIntegration: false` (ADR 0004). It has no Node at all, so no `fs`, `child_process`,
   workers or native addons exist for it to call. Its page CSP has `connect-src 'none'`
-  (milestone 3 allows only the model API host), and its session cancels every request
+  (milestone 3 allows only the model API host) and `worker-src 'none'`, and its session cancels every request
   except its own two files. It talks to main over one `MessagePort`; its preload only
   hands that port in and exposes nothing else.
 - **host** is an Electron utility process (full Node), the only process that touches the OS.

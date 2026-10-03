@@ -17,6 +17,7 @@ const electronPath = createRequire(import.meta.url)("electron") as string;
 interface Probe {
   kinds: Record<string, string>;
   fetches: Record<string, string>;
+  workers: Record<string, string>;
   globals: string[];
 }
 interface HarnessResult {
@@ -91,6 +92,15 @@ describe("agent sandbox (real agent window)", () => {
     for (const [url, outcome] of fetches) {
       expect(outcome, url).toMatch(/^failed: /);
     }
+  });
+
+  it("cannot start a Worker: not from its own file, a blob or a data URL", () => {
+    const workers = Object.entries(result.agentProbe.workers);
+    expect(workers).toHaveLength(3);
+    for (const [kind, outcome] of workers) {
+      expect(outcome, kind).toMatch(/^blocked: /);
+    }
+    expect(result.logs.some((l) => l.includes(`Content Security Policy directive: "worker-src 'none'"`))).toBe(true);
   });
 
   it("the bridge adds no globals: only the message port crosses, and it works", () => {
