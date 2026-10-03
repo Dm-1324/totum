@@ -1,0 +1,22 @@
+{
+  "name": "totum",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Totum: a Windows desktop AI assistant that acts through permissioned capabilities.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @totum/main dev",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "lint": "depcruise packages --config .dependency-cruiser.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "dependency-cruiser": "^18.5.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

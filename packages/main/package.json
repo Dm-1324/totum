@@ -1,0 +1,12 @@
+{
+  "name": "@totum/main",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Electron main process: windows, hotkey, push-to-talk, IPC routing, utility processes.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@totum/agent",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Utility process: agent loop, model adapter, context, memory. Never touches the OS.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  }
+}

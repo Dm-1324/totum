@@ -1,0 +1,20 @@
+node_modules/
+dist/
+out/
+build/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+
+# local-only
+.env
+.env.*
+!.env.example
+secrets/
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Totum runtime data during dev
+*.sqlite
+*.sqlite-journal

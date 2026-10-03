@@ -1,0 +1,12 @@
+{
+  "name": "@totum/shared",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Capability contract, IPC schemas (zod) and shared types. Pure: no OS access.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@totum/host",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Utility process: permission engine, capabilities, audit log. The only package with OS access.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  }
+}
