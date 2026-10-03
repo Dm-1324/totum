@@ -11,7 +11,7 @@
     "dev": "pnpm --filter @totum/main dev",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
-    "lint": "depcruise packages --config .dependency-cruiser.cjs"
+    "lint": "depcruise packages --config .dependency-cruiser.cjs && node scripts/check-no-raw-html.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

@@ -1,10 +1,12 @@
 // @totum/main: Electron main process: windows, hotkey, push-to-talk, IPC routing, utility processes.
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { CHAT_SEND, type Log } from "@totum/shared";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { AgentClient } from "./agent-client.js";
 import { handleChatSend } from "./chat.js";
 import { handleHostMessage } from "./host-messages.js";
+import type { SenderInfo, TrustedRenderer } from "./sender.js";
 import { Supervisor } from "./supervisor.js";
 import { forkUtility } from "./utility.js";
 
@@ -28,11 +30,15 @@ const host = new Supervisor({
   onMessage: (message) => handleHostMessage(message, log),
 });
 
+/** Our window and page; the only renderer main will answer. */
+let trusted: TrustedRenderer | undefined;
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 720,
     height: 480,
     webPreferences: {
+      preload: join(import.meta.dirname, "../preload/index.cjs"),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -40,15 +46,29 @@ function createWindow(): void {
   });
 
   // electron-vite sets this in dev; in a build the renderer is a local file.
-  const devUrl = process.env["ELECTRON_RENDERER_URL"];
-  if (devUrl) {
-    void win.loadURL(devUrl);
-  } else {
-    void win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
-  }
+  const url =
+    process.env["ELECTRON_RENDERER_URL"] ?? pathToFileURL(join(import.meta.dirname, "../renderer/index.html")).href;
+  trusted = { webContentsId: win.webContents.id, url };
+
+  // The window only ever shows our page: no navigation, no pop-ups.
+  win.webContents.on("will-navigate", (event) => event.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
+  void win.loadURL(url);
 }
 
-ipcMain.handle(CHAT_SEND, (_event, raw: unknown) => handleChatSend(raw, agentClient, log));
+function senderInfo(event: IpcMainInvokeEvent): SenderInfo {
+  const frame = event.senderFrame;
+  return {
+    webContentsId: event.sender.id,
+    isMainFrame: frame !== null && frame.parent === null,
+    url: frame?.url,
+  };
+}
+
+ipcMain.handle(CHAT_SEND, (event, raw: unknown) =>
+  handleChatSend(senderInfo(event), raw, { agent: agentClient, log, trusted: () => trusted }),
+);
 
 void app.whenReady().then(() => {
   agent.start();

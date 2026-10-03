@@ -20,8 +20,22 @@ export default defineConfig({
       },
     },
   },
+  // Sandboxed preloads must be CommonJS and may only require "electron", so
+  // everything else (the shared channel names) is bundled in.
+  preload: {
+    build: {
+      externalizeDeps: false,
+      rollupOptions: {
+        input: { index: resolve(dir, "src/preload.ts") },
+        output: { format: "cjs", entryFileNames: "[name].cjs" },
+      },
+    },
+  },
   renderer: {
     root: resolve(dir, "../ui"),
+    // JSX through Vite's esbuild; no React plugin, so no inline dev preamble
+    // that the renderer's CSP (script-src 'self') would have to allow.
+    esbuild: { jsx: "automatic" },
     build: {
       outDir: resolve(dir, "out/renderer"),
       rollupOptions: {

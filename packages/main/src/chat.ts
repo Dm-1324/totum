@@ -1,15 +1,34 @@
 import { ChatSendRequest, describeIssues, type ChatSendReply, type Log } from "@totum/shared";
 import { AgentRequestError, type AgentClient } from "./agent-client.js";
+import { isTrustedSender, type SenderInfo, type TrustedRenderer } from "./sender.js";
+
+export interface ChatSendDeps {
+  agent: Pick<AgentClient, "send">;
+  log: Log;
+  /** Our window and page; undefined until the window exists. */
+  trusted: () => TrustedRenderer | undefined;
+}
 
 /**
- * Handles chat.send from the renderer. Always resolves with a ChatSendReply;
+ * Handles chat.send from a renderer. Always resolves with a ChatSendReply;
  * the UI never sees a thrown error or a request that never settles.
  */
-export async function handleChatSend(
-  raw: unknown,
-  agent: Pick<AgentClient, "send">,
-  log: Log,
-): Promise<ChatSendReply> {
+export async function handleChatSend(sender: SenderInfo, raw: unknown, deps: ChatSendDeps): Promise<ChatSendReply> {
+  const { agent, log } = deps;
+
+  if (!isTrustedSender(sender, deps.trusted())) {
+    log("warn", "main: rejected chat.send from untrusted sender", {
+      webContentsId: sender.webContentsId,
+      isMainFrame: sender.isMainFrame,
+      urlLength: sender.url?.length ?? 0,
+    });
+    return {
+      ok: false,
+      code: "untrusted_sender",
+      message: "Request refused: it didn't come from the Totum window.",
+    };
+  }
+
   const parsed = ChatSendRequest.safeParse(raw);
   if (!parsed.success) {
     log("warn", "main: rejected invalid chat.send", {

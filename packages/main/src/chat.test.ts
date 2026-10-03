@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentClient, DEFAULT_TIMEOUT_MS } from "./agent-client.js";
 import { handleChatSend } from "./chat.js";
 import { FakeChild } from "./fake-child.js";
+import type { SenderInfo, TrustedRenderer } from "./sender.js";
 import { Supervisor } from "./supervisor.js";
+
+const TRUSTED: TrustedRenderer = { webContentsId: 1, url: "http://localhost:5173/" };
+const OURS: SenderInfo = { webContentsId: 1, isMainFrame: true, url: "http://localhost:5173/" };
 
 /** Main's agent wiring as in index.ts, with a fake agent process. */
 function wire() {
@@ -36,8 +40,10 @@ function wire() {
       queueMicrotask(() => c.emitMessage({ type: "agent.reply", id: msg.id, text: `agent: ${msg.text}` }));
     };
   };
-  const send = (raw: unknown) => handleChatSend(raw, client, log);
-  return { agent, client, child, echo, send, log };
+  const deps = { agent: client, log, trusted: () => TRUSTED };
+  const send = (raw: unknown) => handleChatSend(OURS, raw, deps);
+  const sendFrom = (sender: SenderInfo, raw: unknown) => handleChatSend(sender, raw, deps);
+  return { agent, client, child, echo, send, sendFrom, log };
 }
 
 function track<T>(p: Promise<T>) {
@@ -130,5 +136,43 @@ describe("chat.send never hangs the UI", () => {
     await agent.stop();
     await vi.advanceTimersByTimeAsync(0);
     expect(reply.value).toMatchObject({ ok: false, code: "agent_unavailable" });
+  });
+});
+
+describe("chat.send only answers our window", () => {
+  const others: Array<[string, SenderInfo]> = [
+    ["another window", { ...OURS, webContentsId: 2 }],
+    ["an iframe in our window", { ...OURS, isMainFrame: false }],
+    ["our window after navigating elsewhere", { ...OURS, url: "https://evil.example/" }],
+    ["another local dev port", { ...OURS, url: "http://localhost:5174/" }],
+    ["another page on our dev server", { ...OURS, url: "http://localhost:5173/other.html" }],
+    ["a local file", { ...OURS, url: "file:///C:/Users/someone/Downloads/page.html" }],
+    ["a frame that is gone", { ...OURS, url: undefined }],
+  ];
+
+  it.each(others)("rejects a request from %s without contacting the agent", async (_name, sender) => {
+    const { child, echo, sendFrom, log } = wire();
+    echo();
+    await expect(sendFrom(sender, { text: "hello" })).resolves.toEqual({
+      ok: false,
+      code: "untrusted_sender",
+      message: "Request refused: it didn't come from the Totum window.",
+    });
+    expect(child().posted).toEqual([]);
+    expect(log).toHaveBeenCalledWith("warn", "main: rejected chat.send from untrusted sender", expect.anything());
+  });
+
+  it("rejects everything before our window exists", async () => {
+    const log = vi.fn<Log>();
+    const agent = { send: vi.fn(async () => "agent: hi") };
+    const reply = await handleChatSend(OURS, { text: "hi" }, { agent, log, trusted: () => undefined });
+    expect(reply).toMatchObject({ ok: false, code: "untrusted_sender" });
+    expect(agent.send).not.toHaveBeenCalled();
+  });
+
+  it("does not log the sender's URL", async () => {
+    const { sendFrom, log } = wire();
+    await sendFrom({ ...OURS, url: "https://evil.example/?token=secret" }, { text: "hello" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret");
   });
 });
