@@ -8,10 +8,14 @@ import type { Db } from "./db.js";
 /** Totum runs on Windows: folder scopes use Windows path rules on every OS, so tests match production. */
 const paths = win32;
 
-/** `C:\...` or `\\server\share\...`; nothing that depends on the current drive or folder. */
-const FULLY_QUALIFIED = /^(?:[a-zA-Z]:[\\/]|[\\/]{2}[^\\/?.][^\\/]*[\\/][^\\/]+)/;
-/** `\\?\` and `\\.\` paths skip Windows' own normalization, so `..` in them means something else to the OS. */
-const DEVICE_NAMESPACE = /^[\\/]{2}[?.][\\/]/;
+/**
+ * `C:\...` only. Nothing that depends on the current drive or folder; no
+ * device namespace (`\\?\`, `\\.\`: the OS doesn't collapse `..` in them); and
+ * no UNC (`\\server\share`): even resolving one makes Windows connect to that
+ * server and offer the user's credentials (NTLM) before any grant is checked.
+ * Network shares wait until a milestone needs them, behind their own check.
+ */
+const FULLY_QUALIFIED = /^[a-zA-Z]:[\\/]/;
 /** Names Windows maps to devices in any folder, with or without an extension. */
 const RESERVED_NAME = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(?:\..*)?$/i;
 
@@ -19,14 +23,14 @@ const RESERVED_NAME = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$
  * A folder path in comparable form: fully qualified, resolved (no `.` / `..`),
  * lower case, no trailing separator except on a drive root.
  *
- * Undefined, and so matching nothing, for any path Windows would read
- * differently from this text: relative or drive-relative paths, device
- * namespace paths, a name ending in a dot or space (Windows strips them, so
- * `C:\A.` is `C:\A`), a colon after the drive (alternate data stream) and
- * reserved device names. Links are not followed here; see canonicalFolder.
+ * Undefined, and so matching nothing, for any path that isn't `C:\...` (see
+ * FULLY_QUALIFIED) or that Windows would read differently from its text: a
+ * name ending in a dot or space (Windows strips them, so `C:\A.` is `C:\A`),
+ * a colon after the drive (alternate data stream) and reserved device names.
+ * Links are not followed here; see canonicalFolder.
  */
 export function normalizeFolder(path: string): string | undefined {
-  if (DEVICE_NAMESPACE.test(path) || !FULLY_QUALIFIED.test(path)) return undefined;
+  if (!FULLY_QUALIFIED.test(path)) return undefined;
   let resolved = paths.resolve(path).toLowerCase();
   const root = paths.parse(resolved).root;
   const segments = resolved.slice(root.length).split(paths.sep).filter((s) => s.length > 0);
@@ -39,42 +43,68 @@ export function normalizeFolder(path: string): string | undefined {
   return resolved;
 }
 
-/** Resolves links in an existing path (fs.realpathSync.native in production). Throws if it doesn't exist. */
-export type RealPath = (path: string) => string;
+/** The file system calls canonicalFolder needs: node:fs in production, a fake in tests. */
+export interface PathProbe {
+  /** Resolves every link in an existing path (fs.realpathSync.native). Throws an error with `code` otherwise. */
+  realpath(path: string): string;
+  /** True if anything, even a dangling link, exists at exactly this path (fs.lstatSync, not following links). */
+  exists(path: string): boolean;
+}
 
 /**
  * The folder a path really reaches: the deepest existing ancestor with its
  * junctions and symlinks resolved, plus the parts that don't exist yet. A
  * grant check on `C:\A\link\x` where `link` points to `C:\Windows` then sees
- * `C:\Windows\x`. Undefined when normalizeFolder refuses the path.
+ * `C:\Windows\x`.
+ *
+ * Fails closed: undefined when normalizeFolder refuses the path or its
+ * resolved form (e.g. a link to a UNC share), when resolving fails for any
+ * reason but "doesn't exist", when something exists but can't be resolved (a
+ * dangling link: following it later could land anywhere), and when not even
+ * the drive exists.
  *
  * The engine checks grants on this form. A capability that acts on a folder
  * must act on the same canonical path, or a link swapped in between check and
  * use would defeat it (milestone 4).
  */
-export function canonicalFolder(path: string, realpath: RealPath): string | undefined {
+export function canonicalFolder(path: string, fs: PathProbe): string | undefined {
   const normalized = normalizeFolder(path);
   if (normalized === undefined) return undefined;
   const missing: string[] = [];
   let current = normalized;
   for (;;) {
+    let real: string;
     try {
-      const real = realpath(current);
-      const joined = missing.length > 0 ? paths.join(real, ...missing.reverse()) : real;
-      return normalizeFolder(joined);
-    } catch {
+      real = fs.realpath(current);
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT" || safeExists(fs, current)) return undefined;
       const parent = paths.dirname(current);
-      if (parent === current) return normalized;
+      if (parent === current) return undefined;
       missing.push(paths.basename(current));
       current = parent;
+      continue;
     }
+    return normalizeFolder(missing.length > 0 ? paths.join(real, ...missing.reverse()) : real);
+  }
+}
+
+function errorCode(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+}
+
+/** Treats "can't tell" as "exists", which makes canonicalFolder refuse. */
+function safeExists(fs: PathProbe, path: string): boolean {
+  try {
+    return fs.exists(path);
+  } catch {
+    return true;
   }
 }
 
 /** A scope with its folder made canonical; apps and accounts unchanged. Undefined if the folder is refused. */
-export function canonicalScope(scope: Scope, realpath: RealPath): Scope | undefined {
+export function canonicalScope(scope: Scope, fs: PathProbe): Scope | undefined {
   if (scope.kind !== "folder") return scope;
-  const path = canonicalFolder(scope.path, realpath);
+  const path = canonicalFolder(scope.path, fs);
   return path === undefined ? undefined : { kind: "folder", path };
 }
 

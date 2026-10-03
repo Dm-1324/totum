@@ -1,12 +1,14 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "@totum/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { openDb } from "./db.js";
-import { canonicalFolder, canonicalScope, GrantStore, normalizeFolder, scopeCovers } from "./grants.js";
+import { canonicalFolder, canonicalScope, GrantStore, normalizeFolder, type PathProbe, scopeCovers } from "./grants.js";
 
 const folder = (path: string): Scope => ({ kind: "folder", path });
+/** Windows paths as written: w`C:\A\x` is the text C:\A\x. (A raw string can't end in a backslash, hence `C:\ `.trim().) */
+const w = String.raw;
 
 describe("normalizeFolder", () => {
   it("lower-cases, resolves dots and drops a trailing separator", () => {
@@ -25,70 +27,120 @@ describe("normalizeFolder", () => {
     }
   });
 
-  it("accepts UNC shares", () => {
-    expect(normalizeFolder("\\\\Server\\Share\\Docs")).toBe("\\\\server\\share\\docs");
+  it("refuses UNC shares, so a scope never reaches the network", () => {
+    for (const bad of [w`\\Server\Share\Docs`, "//server/share/docs", w`\\attacker\x`]) {
+      expect(normalizeFolder(bad), bad).toBeUndefined();
+    }
   });
 
   it("refuses paths Windows reads differently from their text", () => {
     for (const bad of [
-      "\\\\?\\C:\\A\\..\\Windows", // device namespace: the OS doesn't collapse ..
-      "\\\\.\\C:\\A",
+      w`\\?\C:\A\..\Windows`, // device namespace: the OS doesn't collapse ..
+      w`\\.\C:\A`,
       "//?/C:/A",
-      "C:\\A.", // Windows strips trailing dots and spaces: this is C:\A
-      "C:\\A \\x",
-      "C:\\A\\...",
-      "C:\\A\\file.txt:secret", // alternate data stream
-      "C:\\A\\nul",
-      "C:\\A\\CON.txt",
-      "C:\\A\\com1",
-      "C:\\A\\conin$",
+      w`C:\A.`, // Windows strips trailing dots and spaces: this is C:\A
+      w`C:\A \x`,
+      w`C:\A\...`,
+      w`C:\A\file.txt:secret`, // alternate data stream
+      w`C:\A\nul`,
+      w`C:\A\CON.txt`,
+      w`C:\A\com1`,
+      w`C:\A\conin$`,
     ]) {
       expect(normalizeFolder(bad), bad).toBeUndefined();
     }
   });
 
   it("still accepts names that only look close to those", () => {
-    for (const ok of ["C:\\A\\.config", "C:\\A\\console", "C:\\A\\nullable", "C:\\A\\a.b"]) {
+    for (const ok of [w`C:\A\.config`, w`C:\A\console`, w`C:\A\nullable`, w`C:\A\a.b`]) {
       expect(normalizeFolder(ok), ok).toBeDefined();
     }
   });
 });
 
+/** A fake file system. `links` maps lower-case paths that exist to what they resolve to. */
+function fakeFs(links: Record<string, string>, extra: { dangling?: string[]; denied?: string[] } = {}) {
+  const calls: string[] = [];
+  const probe: PathProbe = {
+    realpath(p) {
+      const key = p.toLowerCase();
+      calls.push(key);
+      if (extra.denied?.includes(key)) throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      const hit = links[key];
+      if (hit === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return hit;
+    },
+    exists: (p) => p.toLowerCase() in links || (extra.dangling?.includes(p.toLowerCase()) ?? false),
+  };
+  return { probe, calls };
+}
+
 describe("canonicalFolder", () => {
-  // A fake file system: C:\A\link is a junction to C:\Windows; C:\A and C:\Windows exist.
-  const links: Record<string, string> = {
-    "c:\\": "C:\\",
-    "c:\\a": "C:\\A",
-    "c:\\a\\link": "C:\\Windows",
-    "c:\\windows": "C:\\Windows",
-  };
-  const realpath = (p: string) => {
-    const hit = links[p.toLowerCase()];
-    if (hit === undefined) throw new Error("ENOENT");
-    return hit;
-  };
+  // C:\A\link is a junction to C:\Windows; C:\A and C:\Windows exist.
+  const { probe: fs } = fakeFs({
+    [w`c:\ `.trim()]: w`C:\ `.trim(),
+    [w`c:\a`]: w`C:\A`,
+    [w`c:\a\link`]: w`C:\Windows`,
+    [w`c:\windows`]: w`C:\Windows`,
+  });
 
   it("follows a link in an existing path", () => {
-    expect(canonicalFolder("C:\\A\\link\\System32", realpath)).toBe("c:\\windows\\system32");
+    expect(canonicalFolder(w`C:\A\link\System32`, fs)).toBe(w`c:\windows\system32`);
   });
 
   it("keeps the parts that don't exist yet", () => {
-    expect(canonicalFolder("C:\\A\\new\\deeper", realpath)).toBe("c:\\a\\new\\deeper");
+    expect(canonicalFolder(w`C:\A\new\deeper`, fs)).toBe(w`c:\a\new\deeper`);
   });
 
-  it("refuses what normalizeFolder refuses", () => {
-    expect(canonicalFolder("\\\\?\\C:\\A", realpath)).toBeUndefined();
+  it("refuses what normalizeFolder refuses, without touching the file system", () => {
+    const { probe, calls } = fakeFs({});
+    expect(canonicalFolder(w`\\?\C:\A`, probe)).toBeUndefined();
+    expect(canonicalFolder(w`\\attacker\share\x`, probe)).toBeUndefined();
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a dangling link instead of treating it as a new folder", () => {
+    // C:\A\link points to something that doesn't exist yet; creating through it could land anywhere.
+    const { probe } = fakeFs({ [w`c:\ `.trim()]: w`C:\ `.trim(), [w`c:\a`]: w`C:\A` }, { dangling: [w`c:\a\link`] });
+    expect(canonicalFolder(w`C:\A\link\x`, probe)).toBeUndefined();
+  });
+
+  it("refuses when resolving fails for any reason but not-found", () => {
+    const { probe } = fakeFs({ [w`c:\ `.trim()]: w`C:\ `.trim() }, { denied: [w`c:\a`] });
+    expect(canonicalFolder(w`C:\A\x`, probe)).toBeUndefined();
+  });
+
+  it("refuses when existence can't be checked", () => {
+    const probe: PathProbe = {
+      realpath: () => {
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+      exists: () => {
+        throw new Error("EPERM");
+      },
+    };
+    expect(canonicalFolder(w`C:\A`, probe)).toBeUndefined();
+  });
+
+  it("refuses a drive that doesn't exist", () => {
+    const { probe } = fakeFs({});
+    expect(canonicalFolder(w`Q:\A`, probe)).toBeUndefined();
+  });
+
+  it("refuses a link that resolves to a network share", () => {
+    const { probe } = fakeFs({ [w`c:\ `.trim()]: w`C:\ `.trim(), [w`c:\a`]: w`\\attacker\share` });
+    expect(canonicalFolder(w`C:\A\x`, probe)).toBeUndefined();
   });
 
   it("makes a grant on C:\\A not cover a call through a link out of it", () => {
-    const wanted = canonicalScope(folder("C:\\A\\link\\System32"), realpath)!;
-    const granted = canonicalScope(folder("C:\\A"), realpath)!;
+    const wanted = canonicalScope(folder(w`C:\A\link\System32`), fs)!;
+    const granted = canonicalScope(folder(w`C:\A`), fs)!;
     expect(scopeCovers(granted, wanted)).toBe(false);
     // Why canonicalizing matters: the plain text comparison says yes.
-    expect(scopeCovers(folder("C:\\A"), folder("C:\\A\\link\\System32"))).toBe(true);
+    expect(scopeCovers(folder(w`C:\A`), folder(w`C:\A\link\System32`))).toBe(true);
   });
 
-  it("follows a real junction on disk", () => {
+  it("follows a real junction on disk, and refuses a real dangling one", () => {
     const base = mkdtempSync(join(tmpdir(), "totum-junction-"));
     try {
       const granted = join(base, "granted");
@@ -96,17 +148,30 @@ describe("canonicalFolder", () => {
       mkdirSync(granted);
       mkdirSync(outside);
       symlinkSync(outside, join(granted, "link"), "junction");
-      const real = (p: string) => realpathSync.native(p);
+      symlinkSync(join(base, "not-yet"), join(granted, "dangling"), "junction");
+      const real: PathProbe = {
+        realpath: (p) => realpathSync.native(p),
+        exists: (p) => {
+          try {
+            lstatSync(p);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      };
       const wanted = canonicalScope(folder(join(granted, "link", "x")), real)!;
       expect(wanted).toEqual(folder(normalizeFolder(join(realpathSync.native(outside), "x"))!));
       expect(scopeCovers(canonicalScope(folder(granted), real)!, wanted)).toBe(false);
+      expect(canonicalFolder(join(granted, "dangling", "x"), real)).toBeUndefined();
+      expect(canonicalFolder(join(granted, "new", "x"), real)).toBeDefined();
     } finally {
       rmSync(base, { recursive: true, force: true });
     }
   });
 
   it("leaves apps and accounts alone", () => {
-    expect(canonicalScope({ kind: "app", app: "x" }, realpath)).toEqual({ kind: "app", app: "x" });
+    expect(canonicalScope({ kind: "app", app: "x" }, fs)).toEqual({ kind: "app", app: "x" });
   });
 });
 
