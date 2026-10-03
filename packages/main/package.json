@@ -4,9 +4,16 @@
   "version": "0.0.0",
   "description": "Electron main process: windows, hotkey, push-to-talk, IPC routing, utility processes.",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "./out/main/index.js",
   "scripts": {
+    "dev": "node -e \"require('electron')\" && electron-vite dev",
+    "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-vite": "^5.0.0",
+    "vite": "^7.3.6"
   }
 }

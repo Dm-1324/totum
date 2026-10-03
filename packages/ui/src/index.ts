@@ -1,3 +1,4 @@
 // @totum/ui: Sandboxed renderer: command bar, task view, approval dialogs.
-// Intentionally empty until milestone 1. See docs/progress.md.
-export {};
+// Empty window until slice 4 (React + preload bridge). See docs/plans/m1.md.
+const root = document.getElementById("root");
+if (root) root.textContent = "Totum";

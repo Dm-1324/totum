@@ -1,2 +1,7 @@
 packages:
   - "packages/*"
+# Install scripts allowed on purpose: esbuild sets up its platform binary,
+# electron fetches its runtime. Anything else stays blocked.
+allowBuilds:
+  esbuild: true
+  electron: true
