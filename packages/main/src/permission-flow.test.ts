@@ -19,7 +19,7 @@ import { AgentClient, DEFAULT_TIMEOUT_MS } from "./agent-client.js";
 import { handleChatSend } from "./chat.js";
 import { HostClient } from "./host-client.js";
 import { ASK_EXPIRY_MS, PermissionBroker } from "./permissions.js";
-import { handleAuditList, handlePermissionAnswer, relayCapabilityRequest, TaskTaint, type UiDeps } from "./router.js";
+import { handleAuditList, handlePermissionAnswer, relayCapabilityRequest, AgentTaint, type UiDeps } from "./router.js";
 import type { SenderInfo, TrustedRenderer } from "./sender.js";
 
 const TRUSTED: TrustedRenderer = { webContentsId: 1, url: "file:///C:/totum/out/renderer/index.html" };
@@ -57,7 +57,7 @@ function world() {
   const agentClient: AgentClient = new AgentClient({
     post: agentPost,
     log,
-    onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent: agentClient, host: hostClient, taint: new TaskTaint(), log }),
+    onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent: agentClient, host: hostClient, taint: new AgentTaint(), log }),
   });
   agentClient.markUp();
 
@@ -232,7 +232,7 @@ describe("permission flow: every call appears in the log", () => {
         return true;
       },
       log: () => {},
-      onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent, host: w.hostClient, taint: new TaskTaint(), log: () => {} }),
+      onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent, host: w.hostClient, taint: new AgentTaint(), log: () => {} }),
     });
     agent.markUp();
     agent.receive({ type: "capability.request", id: crypto.randomUUID(), call: danger });

@@ -26,7 +26,7 @@ import {
   handleGrantsRevoke,
   handlePermissionAnswer,
   relayCapabilityRequest,
-  TaskTaint,
+  AgentTaint,
   type UiDeps,
 } from "./router.js";
 import type { SenderInfo, TrustedRenderer } from "./sender.js";
@@ -35,7 +35,7 @@ import { forkUtility } from "./utility.js";
 
 const log: Log = (level, message, data) => console[level](message, data ?? "");
 
-const taint = new TaskTaint();
+const taint = new AgentTaint();
 
 const agentClient = new AgentClient({
   post: (message) => agent.post(message),
@@ -81,7 +81,11 @@ const agent = new Supervisor({
     }),
   log,
   onMessage: (message) => agentClient.receive(message),
-  onUp: () => agentClient.markUp(),
+  onUp: () => {
+    // A fresh agent process starts with no memory of anything it read.
+    taint.reset();
+    agentClient.markUp();
+  },
   onDown: (reason) => agentClient.markDown(reason),
 });
 

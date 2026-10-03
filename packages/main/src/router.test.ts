@@ -8,7 +8,7 @@ import {
   handleGrantsRevoke,
   handlePermissionAnswer,
   relayCapabilityRequest,
-  TaskTaint,
+  AgentTaint,
   type UiDeps,
 } from "./router.js";
 import type { SenderInfo, TrustedRenderer } from "./sender.js";
@@ -101,7 +101,7 @@ describe("relayCapabilityRequest", () => {
     relayCapabilityRequest(request, {
       agent: { taskId: () => "chat-7", postResult: (id, r) => (results.push([id, r]), true) },
       host: { call: async (c) => (calls.push(c), { ok: true, output: 1, untrusted: false }) },
-      taint: new TaskTaint(),
+      taint: new AgentTaint(),
       log: vi.fn<Log>(),
     });
     await Promise.resolve();
@@ -110,10 +110,11 @@ describe("relayCapabilityRequest", () => {
     expect(results).toEqual([[askId, { ok: true, output: 1, untrusted: false }]]);
   });
 
-  it("once untrusted content reaches the agent, flags every later call in that task, and never clears the flag", async () => {
+  it("once untrusted content reaches the agent, flags every later call, across tasks, until a fresh agent", async () => {
     const calls: Array<{ taskId: string; shapedByUntrusted: boolean }> = [];
     let task = "chat-1";
-    let untrusted = true;
+    let untrusted = false;
+    const taint = new AgentTaint();
     const deps = {
       agent: { taskId: () => task, postResult: () => true },
       host: {
@@ -122,27 +123,43 @@ describe("relayCapabilityRequest", () => {
           return { ok: true as const, output: "file text", untrusted };
         },
       },
-      taint: new TaskTaint(),
+      taint,
       log: vi.fn<Log>(),
     };
-    const flush = async () => {
+    const relay = async (flag = false) => {
+      relayCapabilityRequest({ ...request, call: { ...request.call, shapedByUntrusted: flag } }, deps);
       for (let i = 0; i < 3; i++) await Promise.resolve();
     };
-    relayCapabilityRequest(request, deps); // reads untrusted content
-    await flush();
+    await relay(); // clean so far
+    untrusted = true;
+    await relay(); // this one reads untrusted content
     untrusted = false;
-    relayCapabilityRequest(request, deps); // the agent says false; main says true
-    await flush();
+    await relay(); // the agent says false; main says true
     task = "chat-2";
-    relayCapabilityRequest(request, deps); // a new user request starts clean
-    await flush();
-    relayCapabilityRequest({ ...request, call: { ...request.call, shapedByUntrusted: true } }, deps);
-    await flush();
-    expect(calls).toEqual([
-      { taskId: "chat-1", shapedByUntrusted: false },
-      { taskId: "chat-1", shapedByUntrusted: true },
-      { taskId: "chat-2", shapedByUntrusted: false },
-      { taskId: "chat-2", shapedByUntrusted: true },
+    await relay(); // a new message doesn't wash it out: the agent still remembers
+    taint.reset(); // a fresh agent process
+    await relay();
+    await relay(true); // the agent can always raise it itself
+    expect(calls.map((c) => [c.taskId, c.shapedByUntrusted])).toEqual([
+      ["chat-1", false],
+      ["chat-1", false],
+      ["chat-1", true],
+      ["chat-2", true],
+      ["chat-2", false],
+      ["chat-2", true],
     ]);
+  });
+
+  it("marks the taint before the agent receives the content", async () => {
+    const taint = new AgentTaint();
+    let taintedWhenDelivered: boolean | undefined;
+    relayCapabilityRequest(request, {
+      agent: { taskId: () => "chat-1", postResult: () => ((taintedWhenDelivered = taint.tainted), true) },
+      host: { call: async () => ({ ok: true, output: "x", untrusted: true }) },
+      taint,
+      log: vi.fn<Log>(),
+    });
+    for (let i = 0; i < 3; i++) await Promise.resolve();
+    expect(taintedWhenDelivered).toBe(true);
   });
 });

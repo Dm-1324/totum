@@ -24,44 +24,47 @@ import type { HostClient } from "./host-client.js";
 import type { PermissionBroker } from "./permissions.js";
 import { isTrustedSender, type SenderInfo, type TrustedRenderer } from "./sender.js";
 
-/** Tasks whose taint is remembered (oldest forgotten first). */
-const MAX_TAINTED_TASKS = 256;
-
 /**
- * Which tasks have had untrusted content (file text, command output, web
- * pages) delivered to the agent. Main sees every result, so it marks the task
- * itself rather than trusting the agent to: an agent steered by injected text
- * would simply stop saying so. Once marked, every later call in the task goes
- * to host as `shapedByUntrusted`, which means approval even with a grant.
+ * Whether untrusted content (file text, command output, web pages) has
+ * reached the agent since its process started. Main sees every result, so it
+ * tracks this itself rather than trusting the agent to: an agent steered by
+ * injected text would simply stop saying so.
+ *
+ * The taint belongs to the agent's memory, not to one task: content read while
+ * answering one message can steer the next. So once tainted, every call goes
+ * to host as `shapedByUntrusted` (approval even with a grant) until the agent
+ * process restarts with an empty context. One flag, nothing to evict, so it
+ * can't drift back to clean. Milestone 3 can narrow it to "until the
+ * conversation is reset" once conversations exist.
  */
-export class TaskTaint {
-  readonly #tainted = new Set<string>();
+export class AgentTaint {
+  #tainted = false;
 
-  mark(taskId: string): void {
-    this.#tainted.delete(taskId);
-    this.#tainted.add(taskId);
-    if (this.#tainted.size > MAX_TAINTED_TASKS) {
-      const oldest = this.#tainted.values().next().value;
-      if (oldest !== undefined) this.#tainted.delete(oldest);
-    }
+  get tainted(): boolean {
+    return this.#tainted;
   }
 
-  has(taskId: string): boolean {
-    return this.#tainted.has(taskId);
+  mark(): void {
+    this.#tainted = true;
+  }
+
+  /** Only when a fresh agent process (no memory) comes up. */
+  reset(): void {
+    this.#tainted = false;
   }
 }
 
 /**
  * agent -> host. The call gets the task id of the user message the agent is
  * answering; with none, it is refused and host never sees it. Main may raise
- * `shapedByUntrusted` (see TaskTaint) but never clears it.
+ * `shapedByUntrusted` (see AgentTaint) but never clears it.
  */
 export function relayCapabilityRequest(
   message: AgentCapabilityRequest,
   deps: {
     agent: Pick<AgentClient, "taskId" | "postResult">;
     host: Pick<HostClient, "call">;
-    taint: TaskTaint;
+    taint: AgentTaint;
     log: Log;
   },
 ): void {
@@ -77,10 +80,10 @@ export function relayCapabilityRequest(
     });
     return;
   }
-  const shapedByUntrusted = message.call.shapedByUntrusted || taint.has(taskId);
+  const shapedByUntrusted = message.call.shapedByUntrusted || taint.tainted;
   void host.call({ ...message.call, taskId, shapedByUntrusted }).then((result) => {
     // Mark before the agent can see the content and act on it.
-    if (result.ok && result.untrusted) taint.mark(taskId);
+    if (result.ok && result.untrusted) taint.mark();
     if (!agent.postResult(message.id, result)) {
       log("warn", "main: agent gone before its capability result arrived", { id: message.id });
     }
