@@ -8,6 +8,7 @@ import {
   handleGrantsRevoke,
   handlePermissionAnswer,
   relayCapabilityRequest,
+  TaskTaint,
   type UiDeps,
 } from "./router.js";
 import type { SenderInfo, TrustedRenderer } from "./sender.js";
@@ -100,11 +101,48 @@ describe("relayCapabilityRequest", () => {
     relayCapabilityRequest(request, {
       agent: { taskId: () => "chat-7", postResult: (id, r) => (results.push([id, r]), true) },
       host: { call: async (c) => (calls.push(c), { ok: true, output: 1, untrusted: false }) },
+      taint: new TaskTaint(),
       log: vi.fn<Log>(),
     });
     await Promise.resolve();
     await Promise.resolve();
     expect(calls).toEqual([{ ...request.call, taskId: "chat-7" }]);
     expect(results).toEqual([[askId, { ok: true, output: 1, untrusted: false }]]);
+  });
+
+  it("once untrusted content reaches the agent, flags every later call in that task, and never clears the flag", async () => {
+    const calls: Array<{ taskId: string; shapedByUntrusted: boolean }> = [];
+    let task = "chat-1";
+    let untrusted = true;
+    const deps = {
+      agent: { taskId: () => task, postResult: () => true },
+      host: {
+        call: async (c: { taskId: string; shapedByUntrusted: boolean }) => {
+          calls.push({ taskId: c.taskId, shapedByUntrusted: c.shapedByUntrusted });
+          return { ok: true as const, output: "file text", untrusted };
+        },
+      },
+      taint: new TaskTaint(),
+      log: vi.fn<Log>(),
+    };
+    const flush = async () => {
+      for (let i = 0; i < 3; i++) await Promise.resolve();
+    };
+    relayCapabilityRequest(request, deps); // reads untrusted content
+    await flush();
+    untrusted = false;
+    relayCapabilityRequest(request, deps); // the agent says false; main says true
+    await flush();
+    task = "chat-2";
+    relayCapabilityRequest(request, deps); // a new user request starts clean
+    await flush();
+    relayCapabilityRequest({ ...request, call: { ...request.call, shapedByUntrusted: true } }, deps);
+    await flush();
+    expect(calls).toEqual([
+      { taskId: "chat-1", shapedByUntrusted: false },
+      { taskId: "chat-1", shapedByUntrusted: true },
+      { taskId: "chat-2", shapedByUntrusted: false },
+      { taskId: "chat-2", shapedByUntrusted: true },
+    ]);
   });
 });

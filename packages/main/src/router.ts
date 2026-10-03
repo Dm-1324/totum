@@ -24,15 +24,48 @@ import type { HostClient } from "./host-client.js";
 import type { PermissionBroker } from "./permissions.js";
 import { isTrustedSender, type SenderInfo, type TrustedRenderer } from "./sender.js";
 
+/** Tasks whose taint is remembered (oldest forgotten first). */
+const MAX_TAINTED_TASKS = 256;
+
+/**
+ * Which tasks have had untrusted content (file text, command output, web
+ * pages) delivered to the agent. Main sees every result, so it marks the task
+ * itself rather than trusting the agent to: an agent steered by injected text
+ * would simply stop saying so. Once marked, every later call in the task goes
+ * to host as `shapedByUntrusted`, which means approval even with a grant.
+ */
+export class TaskTaint {
+  readonly #tainted = new Set<string>();
+
+  mark(taskId: string): void {
+    this.#tainted.delete(taskId);
+    this.#tainted.add(taskId);
+    if (this.#tainted.size > MAX_TAINTED_TASKS) {
+      const oldest = this.#tainted.values().next().value;
+      if (oldest !== undefined) this.#tainted.delete(oldest);
+    }
+  }
+
+  has(taskId: string): boolean {
+    return this.#tainted.has(taskId);
+  }
+}
+
 /**
  * agent -> host. The call gets the task id of the user message the agent is
- * answering; with none, it is refused and host never sees it.
+ * answering; with none, it is refused and host never sees it. Main may raise
+ * `shapedByUntrusted` (see TaskTaint) but never clears it.
  */
 export function relayCapabilityRequest(
   message: AgentCapabilityRequest,
-  deps: { agent: Pick<AgentClient, "taskId" | "postResult">; host: Pick<HostClient, "call">; log: Log },
+  deps: {
+    agent: Pick<AgentClient, "taskId" | "postResult">;
+    host: Pick<HostClient, "call">;
+    taint: TaskTaint;
+    log: Log;
+  },
 ): void {
-  const { agent, host, log } = deps;
+  const { agent, host, taint, log } = deps;
   const taskId = agent.taskId();
   if (taskId === undefined) {
     log("warn", "main: refused a capability request outside a user request", { id: message.id });
@@ -44,7 +77,10 @@ export function relayCapabilityRequest(
     });
     return;
   }
-  void host.call({ ...message.call, taskId }).then((result) => {
+  const shapedByUntrusted = message.call.shapedByUntrusted || taint.has(taskId);
+  void host.call({ ...message.call, taskId, shapedByUntrusted }).then((result) => {
+    // Mark before the agent can see the content and act on it.
+    if (result.ok && result.untrusted) taint.mark(taskId);
     if (!agent.postResult(message.id, result)) {
       log("warn", "main: agent gone before its capability result arrived", { id: message.id });
     }

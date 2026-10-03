@@ -26,6 +26,7 @@ import {
   handleGrantsRevoke,
   handlePermissionAnswer,
   relayCapabilityRequest,
+  TaskTaint,
   type UiDeps,
 } from "./router.js";
 import type { SenderInfo, TrustedRenderer } from "./sender.js";
@@ -34,10 +35,12 @@ import { forkUtility } from "./utility.js";
 
 const log: Log = (level, message, data) => console[level](message, data ?? "");
 
+const taint = new TaskTaint();
+
 const agentClient = new AgentClient({
   post: (message) => agent.post(message),
   log,
-  onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent: agentClient, host: hostClient, log }),
+  onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent: agentClient, host: hostClient, taint, log }),
 });
 
 /** Our window and page; the only renderer main will answer or show questions in. */
