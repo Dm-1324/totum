@@ -5,6 +5,18 @@ a capability is added or changed (the `add-capability` skill does this).
 
 Tiers: 0 observe · 1 reversible local · 2 local, hard to undo · 3 leaves the machine.
 
+## Test capabilities (milestone 2, dev and test builds only)
+
+Exercise the permission spine against Totum's own database. Not in production
+bundles (checked by `production-build.test.ts`).
+
+| Capability | Tier | Status |
+| --- | --- | --- |
+| `test.echo` (returns text, marked untrusted) | 0 | done |
+| `test.note` (undoable note) | 1 | done |
+| `test.danger` (clears notes) | 2 | done |
+| `test.send` (local outbox) | 3 | done |
+
 ## Stage 1: must have
 
 | Capability | Tier | Milestone | Status |

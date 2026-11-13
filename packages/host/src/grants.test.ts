@@ -140,7 +140,8 @@ describe("canonicalFolder", () => {
     expect(scopeCovers(folder(w`C:\A`), folder(w`C:\A\link\System32`))).toBe(true);
   });
 
-  it("follows a real junction on disk, and refuses a real dangling one", () => {
+  // Junctions are a Windows feature; elsewhere symlinkSync(..., "junction") is not a real test of it.
+  it.runIf(process.platform === "win32")("follows a real junction on disk, and refuses a real dangling one", () => {
     const base = mkdtempSync(join(tmpdir(), "totum-junction-"));
     try {
       const granted = join(base, "granted");

@@ -44,8 +44,12 @@ fill it in. Requirements:
 
 Required tests, all through the host's public call path, not `run` directly:
 
-1. Without a grant, the call fails with a `not_granted` code and a hint.
-2. With a grant for a different scope, it fails.
+1. Without a grant, the engine asks the user (it does not fail at once). Denying
+   fails the call with `not_granted` and a hint; the denial is remembered for
+   that task. Granting runs it. `always` is offered only for tier 0/1, and never
+   when the step was shaped by untrusted content.
+2. With a grant for a different scope, it asks again (exact scope, never a
+   broader one). Folder scopes: links and junctions resolve before the check.
 3. Tier 2/3: the call blocks until approval; rejecting means nothing runs.
 4. The audit log gets an entry with capability, scope, inputs (secrets redacted),
    result and approver.
