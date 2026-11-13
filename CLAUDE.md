@@ -6,6 +6,9 @@ acts on their computer through permissioned capabilities.
 - What and why: `docs/vision.md` (open it when a product question comes up).
 - How: `docs/architecture.md` (processes, task flow, capability contract, milestones).
 - Capability registry: `docs/capabilities.md`.
+- Milestone order and which model to use per task: `docs/build-plan.md`.
+- Island UI spec: `docs/island.md`. Chosen open-source libraries: `docs/toolkit.md`
+  (check it before writing a feature from scratch).
 - **Current state and next step: `docs/progress.md`. Read it at the start of every session.**
 
 ## The one rule
@@ -58,3 +61,6 @@ Never work around it; if a task seems to need it, stop and ask.
 - Work in small slices that leave typecheck and tests green; commit each slice.
 - A milestone closes only when its done-when line in `docs/architecture.md` works.
 - Run the `boundary-reviewer` agent on the milestone diff before `/handoff`.
+- End each slice with at most 5 lines: what landed, the test count from the actual
+  run, and anything the user must decide.
+- No background security reviews per commit; the boundary review at close covers it.

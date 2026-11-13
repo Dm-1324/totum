@@ -86,18 +86,11 @@ type Result<O> =
 - Outside content (file contents, command output, web text, email) sets `untrusted: true`.
 - Errors carry an actionable `hint` ("folder not granted; ask the user to grant ~/Projects").
 
-## Build order (each milestone closes on its done-when, not when code exists)
+## Build order
 
-| # | Milestone | Done when |
-| --- | --- | --- |
-| 1 | Process skeleton: main, ui, agent, host as separate processes with typed IPC | UI sends a message to the agent and gets a reply; the agent has no way to touch the filesystem |
-| 2 | Permission spine: contract, grant store, approval dialog, audit log, one dummy capability per tier | A tier-2 call blocks until approved; every call appears in the log |
-| 3 | Agent loop: model client with tool use, streaming, step/token budget, stop | Agent completes a three-step task with the dummy capabilities |
-| 4 | Files and context: `context.active`, `files.*`, `clipboard.*` | "Find the PDF I edited last week in Documents" returns the right file |
-| 5 | Shell and first wedge: `shell.execute`, `files.write` with backup/undo | "Why is this build failing?" gives the right cause on three real broken projects |
-| 6 | Voice and command bar: global hotkey, push-to-talk STT | Both wedge prompts work by voice from inside another app |
-| 7 | Email and second wedge: `email.draft`, `contacts.lookup` for Gmail + Outlook behind one interface | "Attach my resume to a draft for Rahul" leaves a correct draft |
-| 8 | Harden: injection tests, crash resume, cost meter | Every injection test ends in an approval or refusal, never a silent action |
+Superseded on 2026-11-13: the current milestone order, done-when lines and
+model-per-task guide are in `docs/build-plan.md` (ADR 0006). The UI is now the
+island (`docs/island.md`); voice and other libraries are chosen in `docs/toolkit.md`.
 
 ## Decisions
 

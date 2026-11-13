@@ -5,32 +5,31 @@ The handoff note between Claude Code sessions. Read it first; update it last
 
 ## Current state
 
-- Milestone 1 closed. Milestone 2 (permission spine) is **half done**: slices 1-4 of
-  `docs/plans/m2.md` landed; 5-7 remain. 374 tests green; typecheck and lint clean.
-- Contract in `packages/shared/src/capability.ts` (ADR 0005). Host has SQLite via
-  `node:sqlite` (no native module), `GrantStore`, `AuditLog`, and `PermissionEngine`, the
-  one path to `run`, enforcing the user's grant rules (exact scope, `always` only tier 0/1
-  and never when untrusted-shaped, denials remembered per task, max 3 prompts per task).
-- `test.echo/note/danger/send` registered only under `__TOTUM_DEV__` (absent from
-  production bundles; checked by hand, test due in slice 7).
-- IPC: agent -> main -> host capability calls; host -> main -> ui permission asks;
-  ui -> main -> host log/grant queries. Main stamps the task id (the one chat message in
-  flight; else `no_task`), holds the agent's chat timeout while an ask is open, expires
-  asks after 5 min, and marks the agent tainted once untrusted content reaches it.
-- Done-when proven in tests only: `packages/main/src/permission-flow.test.ts`. Not yet in
-  the running app: there is no dialog or log UI (slice 5) and no `/call` trigger (slice 6).
+- Milestone 1 closed. Milestone 2 (permission spine): slices 1-6 landed (last: `16bbce1`,
+  agent `/call`). Only slice 7 (close-out) remains. Last full run: 446 tests green.
+- Host: `node:sqlite`, `GrantStore`, `AuditLog`, `PermissionEngine` (the one path to `run`)
+  enforcing exact scope, `always` only tier 0/1 and never when untrusted-shaped, denials
+  remembered per task, max 3 prompts per task.
+- UI (slice 5): permission dialog (refusing button focused; Enter/Esc refuse), log panel
+  with Undo, grant list with Revoke. Agent (slice 6): `/call` through the same
+  capability path the model will use; dev builds only.
+- 2026-11-13 planning (ADR 0006): UI becomes the island (`docs/island.md`, M4); new
+  milestone order and model guide (`docs/build-plan.md`); open-source picks
+  (`docs/toolkit.md`).
 
 ## Next
 
-**Milestone 2, slices 5-7** (see `docs/plans/m2.md`). No `/milestone` needed; read the plan.
+**Milestone 2, slice 7: close-out** (see `docs/plans/m2.md`). No `/milestone` needed.
 Done when: a tier-2 call blocks until approved; every call appears in the log.
-- 5: permission dialog + log panel + grant list in `packages/ui`. Preload API and
-  `fakeApi()` (`packages/ui/src/fake-api.ts`) exist. Subscribe to `onPermissionAsk` in
-  `main.tsx` before render (an ask sent before React mounts is otherwise missed;
-  main re-shows open asks on `did-finish-load`).
-- 6: agent `/call`, built on `AgentCall` / `AgentCapabilityRequest` (no task id).
-- 7: `production-build.test.ts`, `host-db.process.test.ts`, manual `pnpm dev` check,
-  add-capability skill text for "ask when missing", boundary-reviewer on the whole M2 diff.
+1. Manual `pnpm dev` check (script in slice 6's report; press Enter on the tier-2 dialog:
+   it must reject; wait >10 s: chat must not time out).
+2. `production-build.test.ts` (no `/call`, no `test.*` in production bundles),
+   `host-db.process.test.ts`, add-capability skill text for "ask when missing".
+3. `grants.test.ts`: run the real-junction test only on Windows
+   (`it.runIf(process.platform === "win32")`).
+4. Boundary-reviewer on the whole M2 diff; check the two best-guess fixes (main stamping
+   the task id; taint).
+Then milestone 3 (agent loop) per `docs/build-plan.md`.
 
 ## Done
 
@@ -42,7 +41,7 @@ Done when: a tier-2 call blocks until approved; every call appears in the log.
 ## Open questions
 
 - Model provider and model for the agent loop (decide in milestone 3; record an ADR).
-- Speech-to-text provider (decide in milestone 6).
+- Speech-to-text: decided, local sherpa-onnx (ADR 0006, `docs/toolkit.md`).
 - Trademark check for the name "Totum".
 
 ## Known issues and notes for later
@@ -61,3 +60,9 @@ Done when: a tier-2 call blocks until approved; every call appears in the log.
   API host in the agent CSP and session filter (`agent-request.ts`).
 - Dev: agent code changes need an app restart (no watch for `agent*.vite.config.ts`).
 - `agent-sandbox.test.ts` launches Electron (~10 s) and needs a desktop session.
+- If a future milestone reloads chat history into a restarted agent, the taint must be
+  restored with it.
+- Packaging: disable DevTools in the UI window for production.
+- M3: the agent drops unknown capability ids before sending, so host never audits them.
+  Once the model calls capabilities, unknown ids must still be logged (send them, or log in main).
+- Not on GitHub yet: push to the private `Dm-1324/totum` repo as soon as it exists.
