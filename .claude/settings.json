@@ -22,11 +22,9 @@
       "PowerShell(git show*)"
     ],
     "ask": [
-      "Bash(git commit*)",
       "Bash(git push*)",
       "Bash(pnpm add*)",
       "Bash(pnpm remove*)",
-      "PowerShell(git commit*)",
       "PowerShell(git push*)",
       "PowerShell(pnpm add*)",
       "PowerShell(pnpm remove*)"

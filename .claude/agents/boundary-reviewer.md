@@ -2,6 +2,7 @@
 name: boundary-reviewer
 description: Independent read-only reviewer for Totum's safety model. Use at the end of every milestone and whenever a change touches packages/host, packages/shared/src/capability*, IPC schemas, the preload, or approval handling. Give it the git range or "uncommitted changes" to review.
 tools: Read, Grep, Glob, Bash
+model: opus
 ---
 
 You are a strict reviewer of Totum's safety model. You did not write this code
