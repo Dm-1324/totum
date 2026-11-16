@@ -1,5 +1,6 @@
 import {
   type Capability,
+  type PermissionDecision,
   PermissionAsk,
   type Result,
   TestDangerInput,
@@ -191,6 +192,32 @@ describe("PermissionEngine: approvals", () => {
     expect(user.asks).toHaveLength(asksBefore);
     expect(db.prepare("select count(*) as n from test_outbox").get()?.["n"]).toBe(0);
     expect(audit.list().slice(0, 2).map((e) => e.outcome)).toEqual(["approval_reject_limit", "approval_reject_limit"]);
+  });
+
+  it("parallel approvals can't open more questions than could end the task", async () => {
+    const { engine, db } = makeEngine();
+    const answers: Array<(d: PermissionDecision) => void> = [];
+    const asks: PermissionAsk[] = [];
+    const ask = (a: PermissionAsk) => {
+      asks.push(a);
+      if (a.kind === "grant") return Promise.resolve(allowSession);
+      return new Promise<PermissionDecision>((resolve) => answers.push(resolve));
+    };
+    const send = (n: number) => engine.call(call("test.send", { to: "a@b.c", body: `m${n}` }, { taskId: "t-par" }), ask);
+    const first = send(0);
+    await settle();
+    const rest = [send(1), send(2), send(3)];
+    await settle();
+    // Three approval questions are open; the fourth call is turned away without a question.
+    expect(asks.filter((a) => a.kind === "approval")).toHaveLength(3);
+    expect(await rest[2]).toMatchObject({ ok: false, code: "approval_busy" });
+    // The user rejects all three: the task is stopped.
+    answers[1]!(deny);
+    answers[2]!(deny);
+    answers[0]!(deny);
+    expect(await first).toMatchObject({ code: "rejected" });
+    expect(await send(4)).toMatchObject({ code: "approval_reject_limit" });
+    expect(db.prepare("select count(*) as n from test_outbox").get()?.["n"]).toBe(0);
   });
 
   it("counts rejections per task, and approvals don't count", async () => {

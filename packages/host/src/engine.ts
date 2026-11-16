@@ -59,6 +59,8 @@ interface TaskState {
   prompts: number;
   /** Approvals rejected or timed out; at the limit, the task makes no more calls. */
   rejections: number;
+  /** Approval questions open now: counted against the limit before the answers are known. */
+  approvalsOpen: number;
 }
 
 type Failure = Extract<Result<unknown>, { ok: false }>;
@@ -190,7 +192,8 @@ export class PermissionEngine {
     };
 
     // The user has turned down enough in this task: stop it, and say so.
-    if (this.task(call.taskId).rejections >= MAX_REJECTED_APPROVALS_PER_TASK) {
+    const task = this.task(call.taskId);
+    if (task.rejections >= MAX_REJECTED_APPROVALS_PER_TASK) {
       return finish(
         fail(
           "approval_reject_limit",
@@ -200,7 +203,6 @@ export class PermissionEngine {
         "none",
       );
     }
-
     let approver: "user" | "grant" = "grant";
     if (!grants.has(capability.id, scope)) {
       const granted = await this.askGrant(capability, scope, call, ask);
@@ -209,16 +211,36 @@ export class PermissionEngine {
     }
 
     if (capability.tier >= 2 || call.shapedByUntrusted) {
-      const decision = await ask({
-        kind: "approval",
-        taskId: call.taskId,
-        capability: capability.id,
-        tier: capability.tier,
-        scope,
-        action,
-        shapedByUntrusted: call.shapedByUntrusted,
-      });
-      if (decision.decision !== "approve") this.task(call.taskId).rejections++;
+      if (task.rejections + task.approvalsOpen >= MAX_REJECTED_APPROVALS_PER_TASK) {
+        // Parallel calls can't open more questions than could still end the task.
+        return finish(
+          fail("approval_busy", "Other approvals in this task are still waiting for the user.", "Wait for those answers before asking for more."),
+          "none",
+        );
+      }
+      task.approvalsOpen++;
+      let decision: PermissionDecision;
+      try {
+        decision = await ask({
+          kind: "approval",
+          taskId: call.taskId,
+          capability: capability.id,
+          tier: capability.tier,
+          scope,
+          action,
+          shapedByUntrusted: call.shapedByUntrusted,
+        });
+      } finally {
+        task.approvalsOpen--;
+      }
+      if (decision.decision !== "approve") task.rejections++;
+      if (decision.decision === "approve" && task.rejections >= MAX_REJECTED_APPROVALS_PER_TASK) {
+        // The user turned down the limit while this one waited: the task is stopped.
+        return finish(
+          fail("approval_reject_limit", "The task was stopped while this waited for approval.", "Stop the task. Tell the user."),
+          "none",
+        );
+      }
       if (decision.decision === "timeout") {
         return finish(
           fail("approval_timeout", "Nobody answered the approval request.", "Ask the user whether to try again."),
@@ -374,7 +396,7 @@ export class PermissionEngine {
   private task(taskId: string): TaskState {
     let state = this.tasks.get(taskId);
     if (!state) {
-      state = { denied: new Set(), prompts: 0, rejections: 0 };
+      state = { denied: new Set(), prompts: 0, rejections: 0, approvalsOpen: 0 };
       this.tasks.set(taskId, state);
       if (this.tasks.size > MAX_TRACKED_TASKS) {
         const oldest = this.tasks.keys().next().value;
