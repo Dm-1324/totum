@@ -1,17 +1,19 @@
 // Milestone 2: test capabilities and the dev-only /call parser must not exist
-// in production bundles. Builds the real host and agent entries in production
+// in production bundles. Builds main and host with the real electron.vite.config.ts
+// and the agent with the real agent.vite.config.ts, in production
 // mode into temp folders (never packages/main/out) and searches the output,
 // which proves tree-shaking, not just that the flag is false. A development
 // build of the same entries is the control: the markers must be found there,
 // or the search proves nothing.
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { build as buildElectron } from "electron-vite";
 import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const mainDir = join(import.meta.dirname, "..");
-const hostEntry = join(mainDir, "..", "host", "src", "index.ts");
 
 /** Strings that exist only because of the test capabilities or /call. */
 const HOST_MARKERS = ["test.danger", "test.send", "test.note", "test.echo", "totum-test-outbox"];
@@ -32,22 +34,31 @@ function readTree(dir: string): string {
     .join("\n");
 }
 
+/**
+ * The real electron-vite config, run through its own `build`. Only the output
+ * folders are redirected, by a throwaway wrapper that calls the real config
+ * and overrides `outDir` (so a regression in the real define or mode logic
+ * shows up here). Main, host, preload and renderer are all built; host and
+ * main are searched.
+ */
 async function buildHost(mode: Mode): Promise<string> {
-  const outDir = join(work, `host-${mode}`);
-  await build({
-    configFile: false,
-    mode,
-    logLevel: "warn",
-    define: { __TOTUM_DEV__: JSON.stringify(mode === "development") },
-    build: {
-      ssr: hostEntry,
-      outDir,
-      target: "esnext",
-      rollupOptions: { external: ["electron", /^node:/], output: { format: "es" } },
-    },
-    ssr: { noExternal: true, external: ["electron"] },
-  });
-  return readTree(outDir);
+  const outDir = join(work, `electron-${mode}`);
+  const realConfig = pathToFileURL(join(mainDir, "electron.vite.config.ts")).href;
+  const wrapper = join(work, `wrapper-${mode}.config.mjs`);
+  writeFileSync(
+    wrapper,
+    [
+      `import real from ${JSON.stringify(realConfig)};`,
+      `const out = ${JSON.stringify(outDir)};`,
+      `const at = (section, name) => ({ ...section, build: { ...section.build, outDir: out + "/" + name, emptyOutDir: true } });`,
+      `export default async (env) => {`,
+      `  const c = await (typeof real === "function" ? real(env) : real);`,
+      `  return { ...c, main: at(c.main, "main"), preload: at(c.preload, "preload"), renderer: at(c.renderer, "renderer") };`,
+      `};`,
+    ].join("\n"),
+  );
+  await buildElectron({ configFile: wrapper, root: mainDir, mode, logLevel: "error" });
+  return readTree(join(outDir, "main"));
 }
 
 /** The real agent config; only the output folder is redirected. */
