@@ -11,7 +11,7 @@ const dir = import.meta.dirname;
 // __TOTUM_DEV__ follows the mode: `pnpm dev` builds with --mode development
 // (test capabilities and /call), `pnpm build` in production mode (neither).
 export default defineConfig(({ mode }) => ({
-  define: { __TOTUM_DEV__: JSON.stringify(mode !== "production") },
+  define: { __TOTUM_DEV__: JSON.stringify(mode === "development") },
   root: resolve(dir, "../agent"),
   base: "./",
   logLevel: "warn",

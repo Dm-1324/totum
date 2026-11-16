@@ -114,9 +114,10 @@ function createWindow(): void {
     },
   });
 
-  // electron-vite sets this in dev; in a build the renderer is a local file.
+  // electron-vite sets this in dev (never honoured when packaged); in a build the renderer is a local file.
+  const devUrl = app.isPackaged ? undefined : process.env["ELECTRON_RENDERER_URL"];
   const url =
-    process.env["ELECTRON_RENDERER_URL"] ?? pathToFileURL(join(import.meta.dirname, "../renderer/index.html")).href;
+    devUrl ?? pathToFileURL(join(import.meta.dirname, "../renderer/index.html")).href;
   trusted = { webContentsId: win.webContents.id, url };
   mainWindow = win;
   // A reload drops the page's dialogs; show the open questions again.

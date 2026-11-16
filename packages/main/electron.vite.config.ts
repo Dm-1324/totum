@@ -12,7 +12,7 @@ const dir = import.meta.dirname;
 // build; host registers the test capabilities only when it is true (ADR 0005).
 export default defineConfig(({ mode }) => ({
   main: {
-    define: { __TOTUM_DEV__: JSON.stringify(mode !== "production") },
+    define: { __TOTUM_DEV__: JSON.stringify(mode === "development") },
     build: {
       externalizeDeps: false,
       rollupOptions: {

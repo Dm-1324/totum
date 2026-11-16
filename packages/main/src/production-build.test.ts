@@ -38,7 +38,7 @@ async function buildHost(mode: Mode): Promise<string> {
     configFile: false,
     mode,
     logLevel: "warn",
-    define: { __TOTUM_DEV__: JSON.stringify(mode !== "production") },
+    define: { __TOTUM_DEV__: JSON.stringify(mode === "development") },
     build: {
       ssr: hostEntry,
       outDir,
