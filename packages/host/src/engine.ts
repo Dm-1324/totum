@@ -39,6 +39,8 @@ export type Ask = (ask: PermissionAsk) => Promise<PermissionDecision>;
 
 /** Grant prompts allowed per task before the engine stops asking. */
 export const MAX_GRANT_PROMPTS_PER_TASK = 3;
+/** Approvals the user may reject (or leave unanswered) in one task before the task is stopped. */
+export const MAX_REJECTED_APPROVALS_PER_TASK = 3;
 /** Tasks whose denials and prompt counts are remembered (oldest forgotten first). */
 const MAX_TRACKED_TASKS = 100;
 const MAX_SUMMARY = 10_000;
@@ -55,6 +57,8 @@ export interface EngineOptions {
 interface TaskState {
   denied: Set<string>;
   prompts: number;
+  /** Approvals rejected or timed out; at the limit, the task makes no more calls. */
+  rejections: number;
 }
 
 type Failure = Extract<Result<unknown>, { ok: false }>;
@@ -185,6 +189,18 @@ export class PermissionEngine {
       return result;
     };
 
+    // The user has turned down enough in this task: stop it, and say so.
+    if (this.task(call.taskId).rejections >= MAX_REJECTED_APPROVALS_PER_TASK) {
+      return finish(
+        fail(
+          "approval_reject_limit",
+          `The user turned down ${MAX_REJECTED_APPROVALS_PER_TASK} approvals in this task, so it is stopped.`,
+          "Stop the task. Tell the user you were refused three times and ask what they want instead.",
+        ),
+        "none",
+      );
+    }
+
     let approver: "user" | "grant" = "grant";
     if (!grants.has(capability.id, scope)) {
       const granted = await this.askGrant(capability, scope, call, ask);
@@ -202,6 +218,7 @@ export class PermissionEngine {
         action,
         shapedByUntrusted: call.shapedByUntrusted,
       });
+      if (decision.decision !== "approve") this.task(call.taskId).rejections++;
       if (decision.decision === "timeout") {
         return finish(
           fail("approval_timeout", "Nobody answered the approval request.", "Ask the user whether to try again."),
@@ -357,7 +374,7 @@ export class PermissionEngine {
   private task(taskId: string): TaskState {
     let state = this.tasks.get(taskId);
     if (!state) {
-      state = { denied: new Set(), prompts: 0 };
+      state = { denied: new Set(), prompts: 0, rejections: 0 };
       this.tasks.set(taskId, state);
       if (this.tasks.size > MAX_TRACKED_TASKS) {
         const oldest = this.tasks.keys().next().value;

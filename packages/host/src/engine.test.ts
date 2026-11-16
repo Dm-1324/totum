@@ -173,6 +173,38 @@ describe("PermissionEngine: approvals", () => {
     expect(result).toMatchObject({ ok: false, code: "approval_timeout" });
     expect(db.prepare("select count(*) as n from test_outbox").get()?.["n"]).toBe(0);
   });
+
+  it("stops the task after 3 rejected approvals: no more asks, an audited failure telling the agent to stop", async () => {
+    const { engine, db, audit } = makeEngine();
+    const send = (n: number) => call("test.send", { to: "a@b.c", body: `m${n}` }, { taskId: "t-rej" });
+    // grant once, then reject, reject, time out
+    const user = scriptedUser([allowSession, deny, deny, timeout]);
+    for (let n = 0; n < 3; n++) {
+      expect(await engine.call(send(n), user.ask)).toMatchObject({ ok: false });
+    }
+    const asksBefore = user.asks.length;
+    const fourth = await engine.call(send(3), user.ask);
+    expect(fourth).toMatchObject({ ok: false, code: "approval_reject_limit", hint: expect.stringContaining("Stop the task") });
+    // Any other call in the task is refused too, even one the user already granted.
+    const echo = await engine.call(call("test.echo", { text: "hi" }, { taskId: "t-rej" }), user.ask);
+    expect(echo).toMatchObject({ ok: false, code: "approval_reject_limit" });
+    expect(user.asks).toHaveLength(asksBefore);
+    expect(db.prepare("select count(*) as n from test_outbox").get()?.["n"]).toBe(0);
+    expect(audit.list().slice(0, 2).map((e) => e.outcome)).toEqual(["approval_reject_limit", "approval_reject_limit"]);
+  });
+
+  it("counts rejections per task, and approvals don't count", async () => {
+    const { engine } = makeEngine();
+    const user = scriptedUser([allowSession, approve, deny, deny, approve]);
+    const send = (taskId: string) => call("test.send", { to: "a@b.c", body: "x" }, { taskId });
+    await engine.call(send("t-a"), user.ask); // grant + approve
+    await engine.call(send("t-a"), user.ask); // reject
+    await engine.call(send("t-a"), user.ask); // reject
+    // Two rejections: still under the limit, so the task may try again.
+    expect((await engine.call(send("t-a"), scriptedUser([approve]).ask)).ok).toBe(true);
+    // A different task starts clean.
+    expect((await engine.call(send("t-b"), user.ask)).ok).toBe(true);
+  });
 });
 
 describe("PermissionEngine: every call is audited", () => {
