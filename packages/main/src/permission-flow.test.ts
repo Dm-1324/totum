@@ -78,6 +78,7 @@ function world() {
     closed: (id) => closed.push(id),
     hold: () => agentClient.hold(),
     log,
+    minShownMs: 0,
   });
 
   const hostClient: HostClient = new HostClient({

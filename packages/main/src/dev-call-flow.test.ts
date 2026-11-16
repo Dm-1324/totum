@@ -62,6 +62,7 @@ function world({ dev = true } = {}) {
     },
     closed: () => {},
     hold: () => agentClient.hold(),
+    minShownMs: 0,
     log,
   });
   const hostClient: HostClient = new HostClient({

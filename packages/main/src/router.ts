@@ -103,6 +103,7 @@ const MESSAGES: Record<UiErrorCode, string> = {
   untrusted_sender: "Request refused: it didn't come from the Totum window.",
   invalid_request: "That request was malformed.",
   unknown_ask: "That question is no longer open.",
+  too_soon: "That answer came too quickly after the question appeared. Read it, then answer again.",
   host_unavailable: "Totum's host isn't available right now. Try again in a moment.",
 };
 const uiError = (code: UiErrorCode, message = MESSAGES[code]): UiError => ({ ok: false, code, message });

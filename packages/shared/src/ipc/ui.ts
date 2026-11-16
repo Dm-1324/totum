@@ -25,7 +25,7 @@ export const GrantsRevokeRequest = z.object({ capability: CapabilityId, scope: S
 export type GrantsRevokeRequest = z.infer<typeof GrantsRevokeRequest>;
 
 /** Why a ui -> main request (other than chat.send) failed. */
-export const UiErrorCode = z.enum(["invalid_request", "untrusted_sender", "unknown_ask", "host_unavailable"]);
+export const UiErrorCode = z.enum(["invalid_request", "untrusted_sender", "unknown_ask", "too_soon", "host_unavailable"]);
 export type UiErrorCode = z.infer<typeof UiErrorCode>;
 const UiError = z.object({ ok: z.literal(false), code: UiErrorCode, message: MessageText }).strict();
 

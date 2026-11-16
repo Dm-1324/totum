@@ -1,6 +1,6 @@
 import type { PermissionAsk, PermissionDecision, UiPermissionAsk } from "@totum/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ASK_EXPIRY_MS, decisionFits, PermissionBroker } from "./permissions.js";
+import { ASK_EXPIRY_MS, decisionFits, MIN_SHOWN_MS, PermissionBroker } from "./permissions.js";
 
 const grantAsk: PermissionAsk = {
   kind: "grant",
@@ -23,7 +23,7 @@ const approvalAsk: PermissionAsk = {
   shapedByUntrusted: false,
 };
 
-function setup(options: { window?: boolean } = {}) {
+function setup(options: { window?: boolean; minShownMs?: number } = {}) {
   const answers: Array<[string, PermissionDecision]> = [];
   const shown: UiPermissionAsk[] = [];
   const closed: string[] = [];
@@ -41,6 +41,7 @@ function setup(options: { window?: boolean } = {}) {
       return () => holds--;
     },
     log: vi.fn(),
+    minShownMs: options.minShownMs ?? 0,
   });
   return { broker, answers, shown, closed, holds: () => holds };
 }
@@ -61,6 +62,48 @@ describe("decisionFits", () => {
 
   it("never lets the UI answer timeout", () => {
     expect(decisionFits(grantAsk, { decision: "timeout" })).toBe(false);
+  });
+});
+
+describe("PermissionBroker double-click guard", () => {
+  it("ignores an approving answer within 500 ms of the question appearing; denying is immediate", () => {
+    const { broker, answers } = setup({ minShownMs: MIN_SHOWN_MS });
+    broker.open("a1", approvalAsk);
+    vi.advanceTimersByTime(MIN_SHOWN_MS - 1);
+    expect(broker.answer("a1", { decision: "approve" })).toBe("too_soon");
+    expect(answers).toEqual([]);
+    expect(broker.answer("a1", { decision: "deny" })).toBeUndefined();
+    expect(answers).toEqual([["a1", { decision: "deny" }]]);
+  });
+
+  it("accepts the answer once 500 ms have passed", () => {
+    const { broker, answers } = setup({ minShownMs: MIN_SHOWN_MS });
+    broker.open("a1", approvalAsk);
+    vi.advanceTimersByTime(MIN_SHOWN_MS);
+    expect(broker.answer("a1", { decision: "approve" })).toBeUndefined();
+    expect(answers).toHaveLength(1);
+  });
+
+  it("a queued question counts as shown only once the previous one was answered", () => {
+    const { broker, answers } = setup({ minShownMs: MIN_SHOWN_MS });
+    broker.open("a1", grantAsk);
+    broker.open("a2", approvalAsk); // arrives now, but the window shows it after a1
+    vi.advanceTimersByTime(2000);
+    expect(broker.answer("a1", { decision: "allow", lifetime: "session" })).toBeUndefined();
+    // the user's second click of a double-click lands on a2 straight after
+    vi.advanceTimersByTime(50);
+    expect(broker.answer("a2", { decision: "approve" })).toBe("too_soon");
+    vi.advanceTimersByTime(MIN_SHOWN_MS);
+    expect(broker.answer("a2", { decision: "approve" })).toBeUndefined();
+    expect(answers.map(([id]) => id)).toEqual(["a1", "a2"]);
+  });
+
+  it("reshowing after a window reload restarts the clock", () => {
+    const { broker } = setup({ minShownMs: MIN_SHOWN_MS });
+    broker.open("a1", approvalAsk);
+    vi.advanceTimersByTime(2000);
+    broker.reshow();
+    expect(broker.answer("a1", { decision: "approve" })).toBe("too_soon");
   });
 });
 
