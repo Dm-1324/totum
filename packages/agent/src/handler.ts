@@ -7,8 +7,6 @@ export type Command = (text: string, capabilities: CapabilityClient) => Promise<
 export interface AgentOptions {
   post: (message: AgentToMain) => void;
   log: Log;
-  /** Capability ids the agent may request. */
-  known: ReadonlySet<string>;
   /** Dev builds only: the `/call` command (index.ts wires it behind __TOTUM_DEV__). */
   command?: Command | undefined;
   newId?: (() => string) | undefined;
@@ -21,7 +19,7 @@ export interface AgentOptions {
  */
 export function createAgent(options: AgentOptions) {
   const { post, log } = options;
-  const capabilities = new CapabilityClient({ post, log, known: options.known, newId: options.newId });
+  const capabilities = new CapabilityClient({ post, log, newId: options.newId });
 
   function receive(raw: unknown): void {
     const parsed = MainToAgent.safeParse(raw);

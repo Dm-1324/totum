@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  HostAuditRefusal,
   HostCapabilityRequest,
   HostCapabilityResult,
   HostQueryMessage,
@@ -23,5 +24,10 @@ export const HostToMain = z.discriminatedUnion("type", [
 export type HostToMain = z.infer<typeof HostToMain>;
 
 /** Everything main may send the host. */
-export const MainToHost = z.discriminatedUnion("type", [HostCapabilityRequest, PermissionAnswerMessage, HostQueryMessage]);
+export const MainToHost = z.discriminatedUnion("type", [
+  HostCapabilityRequest,
+  HostAuditRefusal,
+  PermissionAnswerMessage,
+  HostQueryMessage,
+]);
 export type MainToHost = z.infer<typeof MainToHost>;

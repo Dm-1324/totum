@@ -1,4 +1,5 @@
 import {
+  type AgentCapabilityRefused,
   type AgentCapabilityRequest,
   AgentToMain,
   type CapabilityResult,
@@ -29,6 +30,8 @@ export interface AgentClientOptions {
   newId?: () => string;
   /** The agent asked for a capability; main relays it to host (router.ts). */
   onCapabilityRequest?: (message: AgentCapabilityRequest) => void;
+  /** The agent refused to send a malformed call; main has it audited. */
+  onCapabilityRefused?: (message: AgentCapabilityRefused) => void;
 }
 
 interface Pending {
@@ -56,6 +59,7 @@ export class AgentClient {
   readonly #timeoutMs: number;
   readonly #newId: () => string;
   readonly #onCapabilityRequest: AgentClientOptions["onCapabilityRequest"];
+  readonly #onCapabilityRefused: AgentClientOptions["onCapabilityRefused"];
   #downReason: string | undefined = "The agent is starting. Try again in a moment.";
   #holds = 0;
 
@@ -65,6 +69,7 @@ export class AgentClient {
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#newId = options.newId ?? (() => crypto.randomUUID());
     this.#onCapabilityRequest = options.onCapabilityRequest;
+    this.#onCapabilityRefused = options.onCapabilityRefused;
   }
 
   /**
@@ -162,6 +167,11 @@ export class AgentClient {
     if (parsed.data.type === "capability.request") {
       if (this.#onCapabilityRequest) this.#onCapabilityRequest(parsed.data);
       else this.#log("warn", "main: dropped capability.request; nothing relays them", { id: parsed.data.id });
+      return;
+    }
+
+    if (parsed.data.type === "capability.refused") {
+      this.#onCapabilityRefused?.(parsed.data);
       return;
     }
 

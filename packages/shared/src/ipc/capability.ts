@@ -22,6 +22,22 @@ export const AgentCapabilityRequest = z
   .strict();
 export type AgentCapabilityRequest = z.infer<typeof AgentCapabilityRequest>;
 
+/** Why a call was refused before host could see it. Host records one audit row per refusal. */
+export const RefusalCode = z.enum(["no_task", "invalid_request"]);
+export type RefusalCode = z.infer<typeof RefusalCode>;
+
+// Route: agent -> main. A call the agent refused to send (it didn't match AgentCall).
+// Only so the audit log shows it; the agent already told its caller. `capability` is
+// whatever the caller wrote: untrusted text, cut short.
+export const AgentCapabilityRefused = z
+  .object({
+    type: z.literal("capability.refused"),
+    capability: z.string().max(80),
+    issues: z.array(z.string().max(200)).max(10),
+  })
+  .strict();
+export type AgentCapabilityRefused = z.infer<typeof AgentCapabilityRefused>;
+
 // Route: main -> agent, answering an AgentCapabilityRequest by its id.
 export const AgentCapabilityResult = z
   .object({ type: z.literal("capability.result"), id: MessageId, result: CapabilityResult })
@@ -33,6 +49,19 @@ export const HostCapabilityRequest = z
   .object({ type: z.literal("capability.request"), id: MessageId, origin: z.literal("agent"), call: CapabilityCall })
   .strict();
 export type HostCapabilityRequest = z.infer<typeof HostCapabilityRequest>;
+
+// Route: main -> host. Main (or the agent, via main) refused a call before host saw it; host audits it.
+export const HostAuditRefusal = z
+  .object({
+    type: z.literal("audit.refusal"),
+    /** The task in flight, or "none" when there was none. */
+    taskId: z.string().min(1).max(64),
+    capability: z.string().max(80),
+    outcome: RefusalCode,
+    issues: z.array(z.string().max(200)).max(10),
+  })
+  .strict();
+export type HostAuditRefusal = z.infer<typeof HostAuditRefusal>;
 
 // Route: host -> main, answering a HostCapabilityRequest by its id.
 export const HostCapabilityResult = AgentCapabilityResult;

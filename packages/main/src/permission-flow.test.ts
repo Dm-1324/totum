@@ -239,7 +239,8 @@ describe("permission flow: every call appears in the log", () => {
     agent.receive({ type: "capability.request", id: crypto.randomUUID(), call: danger });
     await flush();
     expect(results).toMatchObject([{ type: "capability.result", result: { ok: false, code: "no_task" } }]);
-    expect(await w.auditRows()).toEqual([]);
+    // The refusal still reaches the audit log (through the real host handler and SQLite).
+    expect(await w.auditRows()).toMatchObject([{ capability: "test.danger", outcome: "no_task", approver: "none" }]);
   });
 
   it("the agent can't pick its own task id", async () => {

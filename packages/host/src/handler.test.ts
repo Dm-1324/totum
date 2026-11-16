@@ -118,7 +118,35 @@ describe("host handler", () => {
   });
 });
 
+describe("host handler: refusals from before host", () => {
+  it("audits a refused call and stores no input from the caller", async () => {
+    const { handler, posted, audit } = setup();
+    handler.handle({ type: "audit.refusal", taskId: "none", capability: "test.echo", outcome: "no_task", issues: [] });
+    handler.handle({
+      type: "audit.refusal",
+      taskId: "task-1",
+      capability: "Test.Echo",
+      outcome: "invalid_request",
+      issues: ["invalid_format at call.capability"],
+    });
+    handler.handle({ type: "audit.refusal", taskId: "x", capability: "a", outcome: "granted", issues: [] }); // not a refusal code
+    await settle();
+    expect(posted).toEqual([]);
+    const rows = audit.list();
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ capability: "test.echo", outcome: "no_task", approver: "none", taskId: "none" });
+    expect(rows[0]).toMatchObject({ capability: "Test.Echo", outcome: "invalid_request", taskId: "task-1" });
+    expect(JSON.stringify(rows[0]?.input)).toContain("invalid_format");
+  });
+});
+
 describe("toWire", () => {
+  it("keeps the untrusted flag on failures, so main can taint", () => {
+    expect(toWire({ ok: false, code: "parse_error", message: "m", untrusted: true })).toMatchObject({ untrusted: true });
+    expect(toWire({ ok: false, code: "nope", message: "m", untrusted: false })).toMatchObject({ untrusted: false });
+    expect(toWire({ ok: false, code: "nope", message: "m" })).not.toHaveProperty("untrusted");
+  });
+
   it("fixes codes and texts the wire schema would reject", () => {
     expect(toWire({ ok: false, code: "Bad Code", message: "" })).toEqual({
       ok: false,

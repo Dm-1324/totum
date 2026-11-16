@@ -50,6 +50,8 @@ export function toWire(result: Result<unknown>): CapabilityResult {
     message: clipText(result.message || "The capability failed without saying why."),
   };
   if (result.hint) wire.hint = clipText(result.hint);
+  // The flag decides main's taint: it must survive the trip.
+  if (result.untrusted !== undefined) wire.untrusted = result.untrusted;
   return wire;
 }
 
@@ -86,6 +88,19 @@ export class HostHandler {
             return { ok: false, code: "run_failed", message: "Totum's permission engine failed unexpectedly." };
           })
           .then((result) => post({ type: "capability.result", id: message.id, result: toWire(result) }));
+        return;
+      case "audit.refusal":
+        this.#deps.audit.record(
+          {
+            taskId: message.taskId,
+            capability: message.capability || "(none)",
+            tier: null,
+            scope: null,
+            // What the caller wrote is not stored; the problems are host-checked text.
+            input: message.issues.length > 0 ? { invalid: message.issues } : { omitted: true },
+          },
+          { outcome: message.outcome, approver: "none", untrusted: false },
+        );
         return;
       case "permission.answer": {
         const open = this.#asks.get(message.id);

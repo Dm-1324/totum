@@ -12,8 +12,6 @@ export interface CapabilityClientOptions {
   /** Posts to main over the agent's one port. */
   post: (message: AgentToMain) => void;
   log: Log;
-  /** Capability ids the agent may ask for: the specs it shows the model (M3) or knows in dev. */
-  known: ReadonlySet<string>;
   newId?: (() => string) | undefined;
 }
 
@@ -40,6 +38,13 @@ export class CapabilityClient {
     if (!parsed.success) {
       const issues = describeIssues(parsed.error);
       this.#o.log("warn", "agent: refused a malformed capability request", { issues });
+      // Tell main so the audit log shows the refusal; whatever the caller wrote is cut short.
+      const capability = (call as { capability?: unknown }).capability;
+      this.#o.post({
+        type: "capability.refused",
+        capability: (typeof capability === "string" ? capability : "").slice(0, 80),
+        issues: issues.slice(0, 10).map((issue) => issue.slice(0, 200)),
+      });
       return Promise.resolve({
         ok: false,
         code: "invalid_request",
@@ -47,14 +52,7 @@ export class CapabilityClient {
       });
     }
     const message = parsed.data;
-    if (!this.#o.known.has(message.call.capability)) {
-      return Promise.resolve({
-        ok: false,
-        code: "unknown_capability",
-        message: "There is no capability with that id.",
-        hint: this.#o.known.size > 0 ? `Known: ${[...this.#o.known].join(", ")}.` : undefined,
-      });
-    }
+    // Unknown ids go to host too: it answers, and audits the refusal.
     return new Promise((resolve) => {
       this.#pending.set(message.id, resolve);
       this.#o.post(message);

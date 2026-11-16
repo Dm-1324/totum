@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AgentCapabilityRequest, AgentCapabilityResult } from "./capability.js";
+import { AgentCapabilityRefused, AgentCapabilityRequest, AgentCapabilityResult } from "./capability.js";
 import { MessageId, MessageText } from "./common.js";
 
 // Route: main <-> agent over the utility process port. One-way events;
@@ -20,5 +20,5 @@ export const MainToAgent = z.discriminatedUnion("type", [AgentMessage, AgentCapa
 export type MainToAgent = z.infer<typeof MainToAgent>;
 
 /** Everything the agent may send main. */
-export const AgentToMain = z.discriminatedUnion("type", [AgentReply, AgentCapabilityRequest]);
+export const AgentToMain = z.discriminatedUnion("type", [AgentReply, AgentCapabilityRequest, AgentCapabilityRefused]);
 export type AgentToMain = z.infer<typeof AgentToMain>;

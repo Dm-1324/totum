@@ -28,7 +28,6 @@ function world({ dev = true } = {}) {
   const agent = createAgent({
     post: (message) => hop(() => agentClient.receive(message)),
     log,
-    known: new Set(dev ? TEST_CAPABILITY_SPECS.map((s) => s.id) : []),
     command: dev ? runDevCall : undefined,
   });
 
@@ -132,13 +131,13 @@ describe("/call end to end", () => {
     expect(w.host.db.prepare("select count(*) as n from test_notes").get()?.["n"]).toBe(1);
   });
 
-  it("refuses a request the agent makes outside a user message; host never sees it", async () => {
+  it("refuses a request the agent makes outside a user message; host only audits the refusal", async () => {
     const w = world();
     const result = w.agent.capabilities.request({ capability: "test.note", input: { text: "x" }, shapedByUntrusted: false });
     await flush();
     expect(await result).toMatchObject({ ok: false, code: "no_task" });
     expect(w.shown).toEqual([]);
-    expect(w.audit()).toEqual([]);
+    expect(w.audit()).toMatchObject([{ capability: "test.note", outcome: "no_task", approver: "none" }]);
   });
 
   it("with __TOTUM_DEV__ off, /call is echoed and nothing reaches host", async () => {

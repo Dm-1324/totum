@@ -7,6 +7,7 @@ import {
   handleGrantsList,
   handleGrantsRevoke,
   handlePermissionAnswer,
+  relayCapabilityRefused,
   relayCapabilityRequest,
   AgentTaint,
   type UiDeps,
@@ -88,6 +89,38 @@ describe("ui requests", () => {
   });
 });
 
+describe("refusals before host are audited", () => {
+  const request = {
+    type: "capability.request" as const,
+    id: askId,
+    call: { capability: "test.echo", input: { text: "hi" }, shapedByUntrusted: false },
+  };
+
+  it("no task in flight: the call is refused and host is told, without a task id", () => {
+    const audited: unknown[] = [];
+    const results: unknown[] = [];
+    relayCapabilityRequest(request, {
+      agent: { taskId: () => undefined, postResult: (_id, r) => (results.push(r), true) },
+      host: { call: async () => ({ ok: true, output: 1, untrusted: false }), auditRefusal: (r) => (audited.push(r), true) },
+      taint: new AgentTaint(),
+      log: vi.fn<Log>(),
+    });
+    expect(results).toMatchObject([{ ok: false, code: "no_task" }]);
+    expect(audited).toEqual([{ taskId: "none", capability: "test.echo", outcome: "no_task", issues: [] }]);
+  });
+
+  it("a malformed call the agent refused is audited under the task in flight", () => {
+    const audited: unknown[] = [];
+    const refused = { type: "capability.refused" as const, capability: "Test.Echo", issues: ["invalid_format at call.capability"] };
+    relayCapabilityRefused(refused, { agent: { taskId: () => "chat-3" }, host: { auditRefusal: (r) => (audited.push(r), true) } });
+    relayCapabilityRefused(refused, { agent: { taskId: () => undefined }, host: { auditRefusal: (r) => (audited.push(r), true) } });
+    expect(audited).toEqual([
+      { taskId: "chat-3", capability: "Test.Echo", outcome: "invalid_request", issues: refused.issues },
+      { taskId: "none", capability: "Test.Echo", outcome: "invalid_request", issues: refused.issues },
+    ]);
+  });
+});
+
 describe("relayCapabilityRequest", () => {
   const request = {
     type: "capability.request" as const,
@@ -100,7 +133,7 @@ describe("relayCapabilityRequest", () => {
     const results: unknown[] = [];
     relayCapabilityRequest(request, {
       agent: { taskId: () => "chat-7", postResult: (id, r) => (results.push([id, r]), true) },
-      host: { call: async (c) => (calls.push(c), { ok: true, output: 1, untrusted: false }) },
+      host: { call: async (c) => (calls.push(c), { ok: true, output: 1, untrusted: false }), auditRefusal: () => true },
       taint: new AgentTaint(),
       log: vi.fn<Log>(),
     });
@@ -121,6 +154,7 @@ describe("relayCapabilityRequest", () => {
           calls.push(c.shapedByUntrusted);
           return next;
         },
+        auditRefusal: () => true,
       },
       taint,
       log: vi.fn<Log>(),
@@ -153,6 +187,7 @@ describe("relayCapabilityRequest", () => {
           calls.push({ taskId: c.taskId, shapedByUntrusted: c.shapedByUntrusted });
           return { ok: true as const, output: "file text", untrusted };
         },
+        auditRefusal: () => true,
       },
       taint,
       log: vi.fn<Log>(),
@@ -186,7 +221,7 @@ describe("relayCapabilityRequest", () => {
     let taintedWhenDelivered: boolean | undefined;
     relayCapabilityRequest(request, {
       agent: { taskId: () => "chat-1", postResult: () => ((taintedWhenDelivered = taint.tainted), true) },
-      host: { call: async () => ({ ok: true, output: "x", untrusted: true }) },
+      host: { call: async () => ({ ok: true, output: "x", untrusted: true }), auditRefusal: () => true },
       taint,
       log: vi.fn<Log>(),
     });

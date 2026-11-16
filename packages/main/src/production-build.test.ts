@@ -15,7 +15,7 @@ const hostEntry = join(mainDir, "..", "host", "src", "index.ts");
 
 /** Strings that exist only because of the test capabilities or /call. */
 const HOST_MARKERS = ["test.danger", "test.send", "test.note", "test.echo", "totum-test-outbox"];
-const AGENT_MARKERS = ["test.danger", "test.send", "Usage: /call"];
+const AGENT_MARKERS = ["Usage: /call"];
 
 type Mode = "production" | "development";
 

@@ -1,6 +1,7 @@
 // Main's relays between processes. Main validates, stamps and forwards; it
 // never runs a capability or decides a permission.
 import {
+  type AgentCapabilityRefused,
   type AgentCapabilityRequest,
   AuditListRequest,
   AuditUndoRequest,
@@ -63,7 +64,7 @@ export function relayCapabilityRequest(
   message: AgentCapabilityRequest,
   deps: {
     agent: Pick<AgentClient, "taskId" | "postResult">;
-    host: Pick<HostClient, "call">;
+    host: Pick<HostClient, "call" | "auditRefusal">;
     taint: AgentTaint;
     log: Log;
   },
@@ -72,6 +73,7 @@ export function relayCapabilityRequest(
   const taskId = agent.taskId();
   if (taskId === undefined) {
     log("warn", "main: refused a capability request outside a user request", { id: message.id });
+    host.auditRefusal({ taskId: "none", capability: message.call.capability, outcome: "no_task", issues: [] });
     agent.postResult(message.id, {
       ok: false,
       code: "no_task",
@@ -87,6 +89,19 @@ export function relayCapabilityRequest(
     if (!agent.postResult(message.id, result)) {
       log("warn", "main: agent gone before its capability result arrived", { id: message.id });
     }
+  });
+}
+
+/** agent -> main: the agent refused a malformed call. Only the audit log hasn't heard of it yet. */
+export function relayCapabilityRefused(
+  message: AgentCapabilityRefused,
+  deps: { agent: Pick<AgentClient, "taskId">; host: Pick<HostClient, "auditRefusal"> },
+): void {
+  deps.host.auditRefusal({
+    taskId: deps.agent.taskId() ?? "none",
+    capability: message.capability,
+    outcome: "invalid_request",
+    issues: message.issues,
   });
 }
 

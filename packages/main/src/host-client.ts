@@ -5,6 +5,7 @@ import {
   type CapabilityCall,
   type CapabilityResult,
   describeIssues,
+  type HostAuditRefusal,
   type HostQuery,
   type HostQueryReply,
   HostToMain,
@@ -83,6 +84,11 @@ export class HostClient {
     return this.#wait(this.#calls, id, this.#o.callTimeoutMs ?? CALL_TIMEOUT_MS, unavailable, undefined, () =>
       this.#o.post({ type: "capability.request", id, origin: "agent", call }),
     );
+  }
+
+  /** Has host audit a call that was refused before it got there. False when host isn't running. */
+  auditRefusal(refusal: Omit<HostAuditRefusal, "type">): boolean {
+    return this.#o.post({ type: "audit.refusal", ...refusal });
   }
 
   /** Asks host for the UI. Never rejects. */

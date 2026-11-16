@@ -25,6 +25,7 @@ import {
   handleGrantsList,
   handleGrantsRevoke,
   handlePermissionAnswer,
+  relayCapabilityRefused,
   relayCapabilityRequest,
   AgentTaint,
   type UiDeps,
@@ -41,6 +42,7 @@ const agentClient = new AgentClient({
   post: (message) => agent.post(message),
   log,
   onCapabilityRequest: (message) => relayCapabilityRequest(message, { agent: agentClient, host: hostClient, taint, log }),
+  onCapabilityRefused: (message) => relayCapabilityRefused(message, { agent: agentClient, host: hostClient }),
 });
 
 /** Our window and page; the only renderer main will answer or show questions in. */

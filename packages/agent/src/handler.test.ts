@@ -5,7 +5,6 @@ import { type AgentOptions, createAgent, echo } from "./handler.js";
 
 const id = "3f1c2a9e-7b4d-4e2a-9c1f-5a6b7c8d9e0f";
 const requestId = "00000000-0000-4000-8000-0000000000aa";
-const KNOWN = new Set(["test.echo", "test.note", "test.danger", "test.send"]);
 
 function setup(options: Partial<AgentOptions> = {}) {
   const posted: AgentToMain[] = [];
@@ -13,7 +12,6 @@ function setup(options: Partial<AgentOptions> = {}) {
   const agent = createAgent({
     post: (message) => posted.push(message),
     log,
-    known: KNOWN,
     newId: () => requestId,
     ...options,
   });
@@ -125,16 +123,18 @@ describe("/call in a dev build", () => {
     const { posted, say, settle } = dev();
     say("/call Test.Echo {}");
     await settle();
-    expect(posted).toHaveLength(1);
-    expect(AgentReply.parse(posted[0]).text).toMatch(/^Test\.Echo failed: invalid_request\n.*invalid_format at call\.capability/);
+    // main hears of the refusal (for the audit log), then the user hears it.
+    expect(posted).toHaveLength(2);
+    expect(posted[0]).toMatchObject({ type: "capability.refused", capability: "Test.Echo" });
+    expect(AgentReply.parse(posted[1]).text).toMatch(/^Test\.Echo failed: invalid_request\n.*invalid_format at call\.capability/);
   });
 
-  it("refuses a well-formed but unknown id without sending", async () => {
+  it("sends a well-formed but unknown id to host, which refuses and audits it", async () => {
     const { posted, say, settle } = dev();
     say("/call files.delete {}");
     await settle();
     expect(posted).toHaveLength(1);
-    expect(AgentReply.parse(posted[0]).text).toMatch(/^files\.delete failed: unknown_capability/);
+    expect(AgentCapabilityRequest.parse(posted[0]).call.capability).toBe("files.delete");
   });
 
   it("cuts a huge result to fit a valid reply", async () => {
@@ -156,7 +156,7 @@ describe("/call in a dev build", () => {
 
 describe("/call with __TOTUM_DEV__ off", () => {
   it("is echoed as text and sends nothing", async () => {
-    const { posted, say, settle } = setup({ known: new Set() });
+    const { posted, say, settle } = setup();
     say("/call test.danger {}");
     await settle();
     expect(posted).toEqual([{ type: "agent.reply", id, text: "agent: /call test.danger {}" }]);
