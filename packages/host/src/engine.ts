@@ -179,7 +179,7 @@ export class PermissionEngine {
       audit.finish(entry, {
         outcome: result.ok ? "ok" : result.code,
         approver,
-        untrusted: result.ok && result.untrusted,
+        untrusted: result.untrusted === true,
         undo,
       });
       return result;
@@ -229,7 +229,8 @@ export class PermissionEngine {
       log("error", "host: capability threw", { capability: capability.id, error: String(error) });
       return finish(fail("run_failed", `${capability.id} failed unexpectedly.`, "Tell the user; don't retry."), approver);
     }
-    if (!result.ok) return finish(result, approver);
+    // A failure's text comes from the capability, so it may quote outside content: untrusted unless it says otherwise.
+    if (!result.ok) return finish({ ...result, untrusted: result.untrusted ?? true }, approver);
 
     const output = capability.output.safeParse(result.output);
     if (!output.success) {

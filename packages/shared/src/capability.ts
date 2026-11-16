@@ -63,7 +63,18 @@ export type UndoToken = string | number | boolean | null | UndoToken[] | { [key:
 
 export type Result<O> =
   | { ok: true; output: O; untrusted: boolean; undo?: UndoToken }
-  | { ok: false; code: string; message: string; hint?: string };
+  | {
+      ok: false;
+      code: string;
+      message: string;
+      hint?: string;
+      /**
+       * The message may quote outside text (file contents, command output, a web page).
+       * Left out by a capability, the engine treats its failure as untrusted; set
+       * `false` only when the message is written by the capability, never quoting input from outside.
+       */
+      untrusted?: boolean;
+    };
 
 /** The part of AbortSignal we use; shared has no DOM or Node types. */
 export interface StopSignal {

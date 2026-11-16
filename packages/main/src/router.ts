@@ -83,7 +83,7 @@ export function relayCapabilityRequest(
   const shapedByUntrusted = message.call.shapedByUntrusted || taint.tainted;
   void host.call({ ...message.call, taskId, shapedByUntrusted }).then((result) => {
     // Mark before the agent can see the content and act on it.
-    if (result.ok && result.untrusted) taint.mark();
+    if (result.untrusted) taint.mark();
     if (!agent.postResult(message.id, result)) {
       log("warn", "main: agent gone before its capability result arrived", { id: message.id });
     }

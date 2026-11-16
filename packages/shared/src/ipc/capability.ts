@@ -11,7 +11,7 @@ import { MessageId, MessageText } from "./common.js";
 export const CapabilityResult = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), output: z.unknown(), untrusted: z.boolean() }).strict(),
   z
-    .object({ ok: z.literal(false), code: ErrorCode, message: MessageText, hint: MessageText.optional() })
+    .object({ ok: z.literal(false), code: ErrorCode, message: MessageText, hint: MessageText.optional(), untrusted: z.boolean().optional() })
     .strict(),
 ]);
 export type CapabilityResult = z.infer<typeof CapabilityResult>;
